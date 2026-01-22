@@ -2,10 +2,13 @@ const mongoose = require('mongoose');
 
 const connectDB = async () => {
     try {
-        const conn = await mongoose.connect(process.env.MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
+        let uri = process.env.MONGODB_URI;
+        if (uri && uri.endsWith('/')) {
+            console.log('⚠️ Database name missing in URI, using default: pbl');
+            uri += 'pbl';
+        }
+
+        const conn = await mongoose.connect(uri);
 
         console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     } catch (error) {

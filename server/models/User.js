@@ -26,8 +26,27 @@ const userSchema = new mongoose.Schema({
         enum: ['Student', 'Teacher'],
         required: [true, 'Please specify role'],
     },
+    mastery: {
+        type: Map,
+        of: Number,
+        default: {},
+    },
+    xp: {
+        type: Number,
+        default: 0,
+    },
+    badges: [{
+        type: String,
+    }],
 }, {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Calculate level based on XP (e.g., Level = 1 + floor(XP / 100))
+userSchema.virtual('level').get(function () {
+    return 1 + Math.floor((this.xp || 0) / 100);
 });
 
 // Hash password before saving

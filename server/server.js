@@ -23,6 +23,8 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/github', require('./routes/github'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/students', require('./routes/students'));
+app.use('/api/groups', require('./routes/groups'));
 
 // Health check route
 app.get('/', (req, res) => {
