@@ -101,6 +101,25 @@ export const ProjectProvider = ({ children }) => {
         }
     };
 
+
+
+    const fetchUserTasks = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get('/api/tasks'); // server filters by student
+            setTasks(response.data.tasks);
+            return { success: true };
+        } catch (error) {
+            console.error('Fetch user tasks error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to fetch tasks',
+            };
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const createTask = async (taskData) => {
         try {
             const response = await api.post('/api/tasks', taskData);
@@ -196,6 +215,7 @@ export const ProjectProvider = ({ children }) => {
         loading,
         fetchProjects,
         fetchProject,
+        fetchUserTasks,
         createProject,
         updateProject,
         deleteProject,

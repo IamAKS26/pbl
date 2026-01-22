@@ -1,8 +1,48 @@
 import { useState } from 'react';
 import { formatDateTime } from '../../utils/dateHelpers';
+import api from '../../utils/api';
 
-const TaskDetails = ({ task, onClose }) => {
+const TaskDetails = ({ task, onClose, onUpdate }) => {
     const [activeTab, setActiveTab] = useState('evidence');
+    const [link, setLink] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmitEvidence = async (e) => {
+        e.preventDefault();
+        if (!link) return;
+        setLoading(true);
+        try {
+            await api.post(`/api/tasks/${task._id}/evidence`, {
+                url: link,
+                resourceType: 'link'
+            });
+            setLink('');
+            onUpdate(); // Trigger refresh
+        } catch (error) {
+            console.error(error);
+            alert('Failed to submit evidence');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleLinkRepo = async (e) => {
+        e.preventDefault();
+        if (!link) return;
+        setLoading(true);
+        try {
+            await api.post(`/api/tasks/${task._id}/github-repo`, {
+                repoUrl: link
+            });
+            setLink('');
+            onUpdate(); // Trigger refresh
+        } catch (error) {
+            console.error(error);
+            alert('Failed to link repo');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -57,8 +97,8 @@ const TaskDetails = ({ task, onClose }) => {
                             <button
                                 onClick={() => setActiveTab('evidence')}
                                 className={`pb-2 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'evidence'
-                                        ? 'border-emerald-600 text-emerald-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    ? 'border-emerald-600 text-emerald-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                             >
                                 Evidence ({task.evidenceLinks?.length || 0})
@@ -66,8 +106,8 @@ const TaskDetails = ({ task, onClose }) => {
                             <button
                                 onClick={() => setActiveTab('commits')}
                                 className={`pb-2 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'commits'
-                                        ? 'border-emerald-600 text-emerald-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    ? 'border-emerald-600 text-emerald-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                             >
                                 GitHub Commits ({task.githubCommits?.length || 0})
@@ -78,6 +118,20 @@ const TaskDetails = ({ task, onClose }) => {
                     {/* Tab Content */}
                     {activeTab === 'evidence' && (
                         <div>
+                            <form onSubmit={handleSubmitEvidence} className="mb-6 flex gap-2">
+                                <input
+                                    type="url"
+                                    placeholder="Paste logic evidence link (Doc, Image, etc.)"
+                                    className="input flex-1"
+                                    value={link}
+                                    onChange={(e) => setLink(e.target.value)}
+                                    required
+                                />
+                                <button type="submit" className="btn btn-primary" disabled={loading}>
+                                    {loading ? 'Submitting...' : 'Add Link'}
+                                </button>
+                            </form>
+
                             {task.evidenceLinks && task.evidenceLinks.length > 0 ? (
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {task.evidenceLinks.map((evidence, index) => (
@@ -118,6 +172,22 @@ const TaskDetails = ({ task, onClose }) => {
 
                     {activeTab === 'commits' && (
                         <div>
+                            {!task.githubRepo && (
+                                <form onSubmit={handleLinkRepo} className="mb-6 flex gap-2">
+                                    <input
+                                        type="url"
+                                        placeholder="Paste GitHub Repository URL"
+                                        className="input flex-1"
+                                        value={link}
+                                        onChange={(e) => setLink(e.target.value)}
+                                        required
+                                    />
+                                    <button type="submit" className="btn btn-primary" disabled={loading}>
+                                        {loading ? 'Linking...' : 'Link Repo'}
+                                    </button>
+                                </form>
+                            )}
+
                             {task.githubRepo ? (
                                 <div className="mb-4 p-4 bg-gray-50 rounded-lg">
                                     <p className="text-sm text-gray-600">Repository:</p>
@@ -157,7 +227,7 @@ const TaskDetails = ({ task, onClose }) => {
                                     <svg className="mx-auto h-12 w-12 mb-4" fill="currentColor" viewBox="0 0 24 24">
                                         <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
                                     </svg>
-                                    <p>No GitHub repository linked</p>
+                                    <p>{task.githubRepo ? 'No commits synced yet' : 'No GitHub repository linked'}</p>
                                 </div>
                             )}
                         </div>

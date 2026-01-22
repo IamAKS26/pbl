@@ -45,6 +45,41 @@ const fetchCommits = async (owner, repo, token = null) => {
 };
 
 /**
+ * Fetch contributor statistics from a GitHub repository
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} token - GitHub personal access token (optional)
+ * @returns {Promise<Array>} Array of contributor stats
+ */
+const fetchContributorStats = async (owner, repo, token = null) => {
+    try {
+        const headers = { 'Accept': 'application/vnd.github.v3+json' };
+        if (token || process.env.GITHUB_TOKEN) {
+            headers['Authorization'] = `token ${token || process.env.GITHUB_TOKEN}`;
+        }
+
+        const response = await axios.get(
+            `${GITHUB_API_BASE}/repos/${owner}/${repo}/stats/contributors`,
+            { headers }
+        );
+
+        // API returns 202 Accepted if stats are computing. Retry needed in real prod, but simple return for now.
+        if (response.status === 202) {
+            return []; // Stats computing, handle gracefully
+        }
+
+        return response.data.map(stat => ({
+            author: stat.author.login,
+            totalCommits: stat.total,
+            weeks: stat.weeks // Weekly breakdown
+        }));
+    } catch (error) {
+        console.error('GitHub Stats Error:', error.message);
+        return []; // Return empty on error to not block flow
+    }
+};
+
+/**
  * Parse GitHub repository URL
  * @param {string} url - GitHub repository URL
  * @returns {Object} Object with owner and repo
@@ -65,5 +100,6 @@ const parseGitHubUrl = (url) => {
 
 module.exports = {
     fetchCommits,
+    fetchContributorStats,
     parseGitHubUrl,
 };

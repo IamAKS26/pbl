@@ -115,6 +115,10 @@ exports.login = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                xp: user.xp,
+                badges: user.badges,
+                level: user.level,
+                mastery: user.mastery,
             },
         });
     } catch (error) {
@@ -141,6 +145,10 @@ exports.getMe = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                xp: user.xp,
+                badges: user.badges,
+                level: user.level,
+                mastery: user.mastery,
             },
         });
     } catch (error) {
