@@ -171,11 +171,11 @@ exports.updateTask = async (req, res) => {
             });
         }
 
-        // Students can only update status (for drag-drop)
-        if (req.user.role === 'Student' && Object.keys(req.body).some(key => key !== 'status')) {
+        // Students can only update status (for drag-drop) or submit code
+        if (req.user.role === 'Student' && Object.keys(req.body).some(key => key !== 'status' && key !== 'codeSubmission')) {
             return res.status(403).json({
                 success: false,
-                message: 'Students can only update task status',
+                message: 'Students can only update task status or submit code',
             });
         }
 

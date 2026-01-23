@@ -6,11 +6,14 @@ const {
     createProject,
     updateProject,
     deleteProject,
+    assignTemplate
 } = require('../controllers/projectController');
 const { protect, authorizeTeacher } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(protect);
+
+router.post('/assign-template', authorizeTeacher, assignTemplate);
 
 router.route('/')
     .get(getProjects)

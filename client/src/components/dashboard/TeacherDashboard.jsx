@@ -6,11 +6,12 @@ import { formatDate } from '../../utils/dateHelpers';
 import api from '../../utils/api';
 import ReviewsTab from './ReviewsTab';
 import GroupFormationWizard from './GroupFormationWizard';
+import { PROJECT_TEMPLATES } from '../../constants/templates';
 
 const TeacherDashboard = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
-    const { projects, fetchProjects, createProject, deleteProject, loading } = useProject();
+    const { projects, fetchProjects, createProject, deleteProject, loading, assignTemplate } = useProject();
 
     // UI State
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -226,9 +227,24 @@ const TeacherDashboard = () => {
             await api.put(`/api/groups/${selectedGroup._id}`, { project: projectId });
             fetchGroupsAndStudents();
             setShowAssignProjectModal(false);
+            alert('Project assigned successfully!');
         } catch (err) {
             console.error(err);
             alert('Failed to assign project');
+        }
+    };
+
+    const handleTemplateAssignment = async (templateId) => {
+        if (!selectedGroup) return;
+        if (!window.confirm(`Assign "${PROJECT_TEMPLATES.find(t => t.id === templateId)?.title}" to ${selectedGroup.name}? This will create a new project instance.`)) return;
+
+        const result = await assignTemplate(selectedGroup._id, templateId);
+        if (result.success) {
+            fetchGroupsAndStudents();
+            setShowAssignProjectModal(false);
+            alert('Template assigned successfully!');
+        } else {
+            alert(result.message);
         }
     };
 
@@ -696,23 +712,58 @@ const TeacherDashboard = () => {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
                     <div className="bg-white rounded-xl p-6 max-w-md w-full animate-scale-in">
                         <h3 className="text-lg font-semibold mb-4">Assign Project to {selectedGroup.name}</h3>
-                        <div className="space-y-2 max-h-80 overflow-y-auto">
-                            <button
-                                onClick={() => handleProjectAssignment(null)}
-                                className={`w-full text-left p-3 rounded-lg border transition-colors ${!selectedGroup.project ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 hover:bg-gray-50'}`}
-                            >
-                                <span className="font-medium">No Project</span>
-                            </button>
-                            {projects.map(project => (
-                                <button
-                                    key={project._id}
-                                    onClick={() => handleProjectAssignment(project._id)}
-                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedGroup.project && selectedGroup.project._id === project._id ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 hover:bg-gray-50'}`}
-                                >
-                                    <div className="font-medium">{project.title}</div>
-                                    <div className="text-xs text-gray-500 truncate">{project.description}</div>
-                                </button>
-                            ))}
+                        <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
+                            {/* Option 1: Existing Projects */}
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-500 mb-2 uppercase tracking-wide">Existing Projects</h4>
+                                <div className="space-y-2">
+                                    <button
+                                        onClick={() => handleProjectAssignment(null)}
+                                        className={`w-full text-left p-3 rounded-lg border transition-colors ${!selectedGroup.project ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 hover:bg-gray-50'}`}
+                                    >
+                                        <span className="font-medium">No Project (Unassign)</span>
+                                    </button>
+                                    {projects.map(project => (
+                                        <button
+                                            key={project._id}
+                                            onClick={() => handleProjectAssignment(project._id)}
+                                            className={`w-full text-left p-3 rounded-lg border transition-colors ${selectedGroup.project && selectedGroup.project._id === project._id ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200 hover:bg-gray-50'}`}
+                                        >
+                                            <div className="font-medium">{project.title}</div>
+                                            <div className="text-xs text-gray-500 truncate">{project.description}</div>
+                                        </button>
+                                    ))}
+                                    {projects.length === 0 && <p className="text-sm text-gray-400 italic px-2">No projects created yet.</p>}
+                                </div>
+                            </div>
+
+                            {/* Option 2: Templates */}
+                            <div>
+                                <h4 className="text-sm font-semibold text-gray-500 mb-2 uppercase tracking-wide flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                                    Use Template
+                                </h4>
+                                <div className="space-y-2">
+                                    {PROJECT_TEMPLATES.map(template => (
+                                        <button
+                                            key={template.id}
+                                            onClick={() => handleTemplateAssignment(template.id)}
+                                            className="w-full text-left p-3 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors group"
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className="font-medium text-purple-900 group-hover:text-purple-700">{template.title}</div>
+                                                <span className="text-xs font-semibold bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">{template.difficulty}</span>
+                                            </div>
+                                            <div className="text-xs text-purple-700 mt-1">{template.description}</div>
+                                            <div className="mt-2 flex gap-1 flex-wrap">
+                                                {template.stack.map(tech => (
+                                                    <span key={tech} className="text-[10px] bg-white border border-purple-100 text-purple-600 px-1.5 py-0.5 rounded">{tech}</span>
+                                                ))}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                         <div className="mt-4 flex justify-end">
                             <button onClick={() => setShowAssignProjectModal(false)} className="btn btn-secondary">Cancel</button>

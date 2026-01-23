@@ -8,16 +8,21 @@ import Dashboard from './components/dashboard/Dashboard';
 import ProjectBoard from './components/kanban/ProjectBoard';
 import './index.css';
 
+import LandingPage from './components/layout/LandingPage';
+
+// ...
+
 function App() {
     return (
         <AuthProvider>
             <ProjectProvider>
                 <Router>
                     <Routes>
+                        <Route path="/" element={<LandingPage />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route
-                            path="/"
+                            path="/dashboard"
                             element={
                                 <PrivateRoute>
                                     <Dashboard />

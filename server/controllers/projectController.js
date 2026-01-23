@@ -210,3 +210,76 @@ exports.deleteProject = async (req, res) => {
         });
     }
 };
+// @desc    Assign a project template to a group
+// @route   POST /api/projects/assign-template
+// @access  Private (Teacher only)
+exports.assignTemplate = async (req, res) => {
+    try {
+        const { groupId, templateId, deadline } = req.body;
+        const templates = require('../config/templates');
+        const Group = require('../models/Group');
+
+        if (!templates[templateId]) {
+            return res.status(404).json({
+                success: false,
+                message: 'Template not found'
+            });
+        }
+
+        const template = templates[templateId];
+        const group = await Group.findById(groupId);
+
+        if (!group) {
+            return res.status(404).json({
+                success: false,
+                message: 'Group not found'
+            });
+        }
+
+        // 1. Create Project
+        const projectDeadline = deadline || new Date(Date.now() + (template.deadlineOffsetDays * 24 * 60 * 60 * 1000));
+
+        const project = await Project.create({
+            title: template.title,
+            description: template.description,
+            deadline: projectDeadline,
+            teacher: req.user.id,
+            columns: template.columns,
+            students: group.members // Assign all group members to project
+        });
+
+        // 2. Create Tasks
+        const tasksToCreate = template.tasks.map(t => ({
+            ...t,
+            project: project._id,
+            assignee: group.members[0], // Initally assign to first member or leave unassigned? 
+            // Better strategy: Round robin or just unassigned? 
+            // For now, let's assign to the first member to avoid validation errors if 'assignee' is required.
+            // Model says: assignee required: true.
+            // Let's pick random member? Or first.
+            // Let's modify Task model to allow null assignee? Or just assign properly.
+            // Let's assign to the first member for now.
+            assignee: group.members[0]
+        }));
+
+        await Task.insertMany(tasksToCreate);
+
+        // 3. Update Group
+        group.project = project._id;
+        await group.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Template assigned successfully',
+            project
+        });
+
+    } catch (error) {
+        console.error('Assign template error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error assigning template',
+            error: error.message
+        });
+    }
+};

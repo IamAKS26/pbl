@@ -66,6 +66,16 @@ const taskSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    submissionType: {
+        type: String,
+        enum: ['link', 'file', 'code', 'none'],
+        default: 'none'
+    },
+    codeSubmission: {
+        code: String,
+        language: String,
+        submittedAt: Date,
+    },
 }, {
     timestamps: true,
 });

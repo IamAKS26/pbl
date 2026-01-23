@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../utils/api';
+import CodeEditor from '../common/CodeEditor';
 
 const ReviewsTab = () => {
     const [tasks, setTasks] = useState([]);
@@ -80,6 +81,19 @@ const ReviewsTab = () => {
                                 <a href={task.githubRepo.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                                     {task.githubRepo.owner}/{task.githubRepo.repo}
                                 </a>
+                            </div>
+                        )}
+                        {task.codeSubmission && task.codeSubmission.code && (
+                            <div className="mt-4">
+                                <p className="text-sm font-medium text-gray-700 mb-1">Code Submission:</p>
+                                <div className="h-48 border rounded-lg overflow-hidden">
+                                    <CodeEditor
+                                        initialCode={task.codeSubmission.code}
+                                        language={task.codeSubmission.language || 'javascript'}
+                                        readOnly={true}
+                                        height="100%"
+                                    />
+                                </div>
                             </div>
                         )}
                     </div>

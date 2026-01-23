@@ -208,6 +208,28 @@ export const ProjectProvider = ({ children }) => {
         }
     };
 
+    const assignTemplate = async (groupId, templateId, deadline) => {
+        try {
+            setLoading(true);
+            const response = await api.post('/api/projects/assign-template', {
+                groupId,
+                templateId,
+                deadline
+            });
+            // Update local projects
+            setProjects([response.data.project, ...projects]);
+            return { success: true, project: response.data.project };
+        } catch (error) {
+            console.error('Assign template error:', error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to assign template',
+            };
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const value = {
         projects,
         currentProject,
@@ -226,6 +248,7 @@ export const ProjectProvider = ({ children }) => {
         addEvidence,
         linkGitHubRepo,
         syncGitHubCommits,
+        assignTemplate,
     };
 
     return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;
