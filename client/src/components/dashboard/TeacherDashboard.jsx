@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
 import { formatDate } from '../../utils/dateHelpers';
 import api from '../../utils/api';
+import ReviewsTab from './ReviewsTab';
+import GroupFormationWizard from './GroupFormationWizard';
 
 const TeacherDashboard = () => {
     const navigate = useNavigate();
@@ -28,8 +30,12 @@ const TeacherDashboard = () => {
 
     // Group Management State
     const [selectedGroup, setSelectedGroup] = useState(null);
+    const [editingGroupName, setEditingGroupName] = useState('');
     const [showEditMembersModal, setShowEditMembersModal] = useState(false);
     const [showAssignProjectModal, setShowAssignProjectModal] = useState(false);
+    const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+    const [showGroupWizard, setShowGroupWizard] = useState(false);
+    const [newGroupData, setNewGroupData] = useState({ name: '', members: [] });
 
     useEffect(() => {
         if (activeTab === 'projects') {
@@ -76,61 +82,33 @@ const TeacherDashboard = () => {
         return (sum / scores.length).toFixed(1);
     };
 
-    const handleAutoGenerateGroups = async () => {
-        if (students.length === 0) {
-            alert('No students to group!');
-            return;
-        }
-
-        if (!window.confirm('This will create new groups based on current students. Proceed?')) return;
-
+    const handleSaveGroups = async (newGroups) => {
         try {
             setLoadingData(true);
-
-            // 1. Calculate scores and sort students
-            const studentsWithScores = students.map(s => ({
-                ...s,
-                avgScore: parseFloat(calculateAverage(s.mastery))
-            })).sort((a, b) => b.avgScore - a.avgScore);
-
-            // 2. Form balanced groups (Snake draft or High-Low matching)
-            const newGroups = [];
-            const tempStudents = [...studentsWithScores];
-            let groupIndex = 1;
-
-            while (tempStudents.length > 0) {
-                const groupMembers = [];
-                // Take 1 High
-                if (tempStudents.length > 0) groupMembers.push(tempStudents.shift());
-                // Take 1 Low
-                if (tempStudents.length > 0) groupMembers.push(tempStudents.pop());
-                // Take 1 High
-                if (tempStudents.length > 0) groupMembers.push(tempStudents.shift());
-                // Take 1 Low
-                if (tempStudents.length > 0) groupMembers.push(tempStudents.pop());
-
-                // Calculate group stats
-                const groupAvg = (groupMembers.reduce((acc, curr) => acc + curr.avgScore, 0) / groupMembers.length).toFixed(1);
-
-                newGroups.push({
-                    name: `Group ${groupIndex++}`,
-                    members: groupMembers.map(m => m._id),
-                    averageMastery: groupAvg
-                });
-            }
-
             // 3. Save groups
+            // Note: The wizard generates the structure, we need to save it. 
+            // Ideally we might want to clear old groups first? Or append? 
+            // For this demo, let's assume we are appending or user deleted old ones manually if needed.
+            // Actually, usually "Auto-Generate" implies a fresh start or filling in gaps. 
+            // Let's just create them.
+
             for (const group of newGroups) {
-                await api.post('/api/groups', group);
+                // Map full members objects back to IDs if API expects IDs
+                const formattedGroup = {
+                    ...group,
+                    members: group.members.map(m => m._id)
+                };
+                await api.post('/api/groups', formattedGroup);
             }
 
             // 4. Refresh
             await fetchGroupsAndStudents();
+            setShowGroupWizard(false);
             alert(`Created ${newGroups.length} balanced groups!`);
 
         } catch (err) {
-            console.error('Error generating groups:', err);
-            alert('Failed to generate groups');
+            console.error('Error saving groups:', err);
+            alert('Failed to save groups');
         } finally {
             setLoadingData(false);
         }
@@ -146,9 +124,66 @@ const TeacherDashboard = () => {
         }
     };
 
+    const handleCreateManualGroup = async () => {
+        if (!newGroupData.name.trim()) {
+            alert('Please enter a group name');
+            return;
+        }
+        if (newGroupData.members.length === 0) {
+            alert('Please select at least one member');
+            return;
+        }
+
+        try {
+            setLoadingData(true);
+            await api.post('/api/groups', newGroupData);
+            await fetchGroupsAndStudents();
+            setShowCreateGroupModal(false);
+            setNewGroupData({ name: '', members: [] });
+            alert('Group created successfully!');
+        } catch (err) {
+            console.error(err);
+            alert('Failed to create group');
+        } finally {
+            setLoadingData(false);
+        }
+    };
+
+    const toggleNewGroupMember = (studentId) => {
+        if (newGroupData.members.includes(studentId)) {
+            setNewGroupData({
+                ...newGroupData,
+                members: newGroupData.members.filter(id => id !== studentId)
+            });
+        } else {
+            setNewGroupData({
+                ...newGroupData,
+                members: [...newGroupData.members, studentId]
+            });
+        }
+    };
+
     const handleEditMembers = (group) => {
         setSelectedGroup(group);
+        setEditingGroupName(group.name);
         setShowEditMembersModal(true);
+    };
+
+    const handleUpdateGroupName = async () => {
+        if (!selectedGroup || !editingGroupName.trim()) return;
+        try {
+            await api.put(`/api/groups/${selectedGroup._id}`, { name: editingGroupName });
+
+            // Update local state locally to reflect immediately if needed, though fetch will do it
+            setSelectedGroup(prev => ({ ...prev, name: editingGroupName }));
+
+            // Refresh list
+            fetchGroupsAndStudents();
+            alert('Group name updated!');
+        } catch (err) {
+            console.error(err);
+            alert('Failed to update group name');
+        }
     };
 
     const handleAssignProject = (group) => {
@@ -270,7 +305,8 @@ const TeacherDashboard = () => {
                             <p className="mt-1 text-sm text-gray-600">
                                 {activeTab === 'projects' ? 'Manage your project-based learning activities' :
                                     activeTab === 'students' ? 'View student mastery scores and progress' :
-                                        'Create and manage student groups'}
+                                        activeTab === 'reviews' ? 'Review and grade student submissions' :
+                                            'Create and manage student groups'}
                             </p>
                         </div>
                         {activeTab === 'projects' && (
@@ -284,7 +320,7 @@ const TeacherDashboard = () => {
                     </div>
 
                     <div className="flex space-x-1 bg-gray-200 p-1 rounded-lg inline-flex">
-                        {['projects', 'students', 'groups'].map((tab) => (
+                        {['projects', 'students', 'groups', 'reviews'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -411,16 +447,31 @@ const TeacherDashboard = () => {
                     </div>
                 )}
 
+                {activeTab === 'reviews' && (
+                    <ReviewsTab />
+                )}
+
                 {activeTab === 'groups' && (
                     <div>
-                        <div className="mb-4 flex justify-between items-center">
-                            <h3 className="text-lg font-semibold text-gray-900">Groups</h3>
-                            <button
-                                onClick={handleAutoGenerateGroups}
-                                className="btn btn-primary"
-                            >
-                                Auto-Generate Groups
-                            </button>
+                        <div className="mb-4 flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-900">Groups</h3>
+                                <p className="text-sm text-gray-500">Manage student teams and assignments</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowCreateGroupModal(true)}
+                                    className="btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 shadow-sm"
+                                >
+                                    + Create Manual
+                                </button>
+                                <button
+                                    onClick={() => setShowGroupWizard(true)}
+                                    className="btn btn-primary shadow-sm"
+                                >
+                                    Auto-Generate
+                                </button>
+                            </div>
                         </div>
                         {loadingData ? (
                             <div className="p-8 text-center text-gray-500">Loading groups...</div>
@@ -453,18 +504,23 @@ const TeacherDashboard = () => {
                                                 ))}
                                             </ul>
                                         </div>
-                                        <div className="mt-4 flex space-x-2">
+                                        <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2">
                                             <button
                                                 onClick={() => handleEditMembers(group)}
-                                                className="text-xs text-blue-600 hover:text-blue-800"
+                                                className="animate-color-pulse flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-emerald-700 hover:shadow-md border border-gray-200 hover:border-emerald-200 rounded-lg transition-all duration-200 group-hover:scale-100"
                                             >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                 Edit Members
                                             </button>
                                             <button
                                                 onClick={() => handleAssignProject(group)}
-                                                className="text-xs text-blue-600 hover:text-blue-800"
+                                                className={`animate-color-pulse flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 hover:shadow-md border ${group.project
+                                                    ? 'text-emerald-700 border-emerald-200'
+                                                    : 'text-blue-700 hover:text-blue-800 border-blue-200'
+                                                    }`}
                                             >
-                                                Assign Project
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                                {group.project ? 'Change Project' : 'Assign Project'}
                                             </button>
                                         </div>
                                     </div>
@@ -565,8 +621,27 @@ const TeacherDashboard = () => {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
                     <div className="bg-white rounded-xl p-6 max-w-2xl w-full animate-scale-in max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold">Edit Members: {selectedGroup.name}</h3>
+                            <h3 className="text-lg font-semibold">Edit Group</h3>
                             <button onClick={() => setShowEditMembersModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                        </div>
+
+                        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Group Name</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={editingGroupName}
+                                    onChange={(e) => setEditingGroupName(e.target.value)}
+                                    className="input flex-1"
+                                    placeholder="Enter group name"
+                                />
+                                <button
+                                    onClick={handleUpdateGroupName}
+                                    className="btn btn-primary whitespace-nowrap"
+                                >
+                                    Save Name
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -641,6 +716,85 @@ const TeacherDashboard = () => {
                         </div>
                         <div className="mt-4 flex justify-end">
                             <button onClick={() => setShowAssignProjectModal(false)} className="btn btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showGroupWizard && (
+                <GroupFormationWizard
+                    students={students}
+                    onClose={() => setShowGroupWizard(false)}
+                    onSave={handleSaveGroups}
+                />
+            )}
+
+            {/* Manual Create Group Modal */}
+            {showCreateGroupModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="bg-white rounded-xl p-6 max-w-lg w-full animate-scale-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold text-gray-900">Create New Group</h3>
+                            <button onClick={() => setShowCreateGroupModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    placeholder="e.g. The Avengers"
+                                    value={newGroupData.name}
+                                    onChange={(e) => setNewGroupData({ ...newGroupData, name: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Select Members</label>
+                                <div className="border rounded-lg max-h-60 overflow-y-auto divide-y">
+                                    {getUnassignedStudents().length === 0 ? (
+                                        <div className="p-4 text-center text-gray-500">No unassigned students available.</div>
+                                    ) : (
+                                        getUnassignedStudents().map(student => (
+                                            <label key={student._id} className="flex items-center p-3 hover:bg-gray-50 cursor-pointer user-select-none transition-colors">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 mr-3 h-5 w-5"
+                                                    checked={newGroupData.members.includes(student._id)}
+                                                    onChange={() => toggleNewGroupMember(student._id)}
+                                                />
+                                                <div className="flex-1">
+                                                    <div className="font-medium text-gray-900">{student.name}</div>
+                                                    <div className="text-xs text-gray-500">{student.email}</div>
+                                                </div>
+                                                <div className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                                    Score: {calculateAverage(student.mastery)}
+                                                </div>
+                                            </label>
+                                        ))
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2 text-right">
+                                    Selected: {newGroupData.members.length}
+                                </p>
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <button
+                                    onClick={() => setShowCreateGroupModal(false)}
+                                    className="btn btn-secondary flex-1"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCreateManualGroup}
+                                    className="btn btn-primary flex-1"
+                                    disabled={loadingData}
+                                >
+                                    {loadingData ? 'Creating...' : 'Create Group'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

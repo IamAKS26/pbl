@@ -27,12 +27,21 @@ router.post('/', protect, authorizeTeacher, async (req, res) => {
     }
 });
 
-// @desc    Get all groups created by teacher
+// @desc    Get groups (Teacher: all created, Student: own group)
 // @route   GET /api/groups
-// @access  Private/Teacher
-router.get('/', protect, authorizeTeacher, async (req, res) => {
+// @access  Private
+router.get('/', protect, async (req, res) => {
     try {
-        const groups = await Group.find({ createdBy: req.user.id })
+        let query = {};
+
+        if (req.user.role === 'Teacher') {
+            query = { createdBy: req.user.id };
+        } else {
+            // For student, find group where they are a member
+            query = { members: req.user.id };
+        }
+
+        const groups = await Group.find(query)
             .populate('members', 'name email mastery')
             .populate('project', 'title');
 

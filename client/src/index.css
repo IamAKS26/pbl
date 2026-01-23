@@ -9,19 +9,20 @@
 }
 
 @layer components {
+
   /* Button Styles */
   .btn {
     @apply px-4 py-2 rounded-lg font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2;
   }
-  
+
   .btn-primary {
     @apply bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-500;
   }
-  
+
   .btn-secondary {
     @apply bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-500;
   }
-  
+
   .btn-danger {
     @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
   }
@@ -61,5 +62,24 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  @keyframes colorPulse {
+    0% {
+      background-color: white;
+    }
+
+    50% {
+      background-color: #bae6fd;
+    }
+
+    /* sky-200 */
+    100% {
+      background-color: white;
+    }
+  }
+
+  .animate-color-pulse {
+    animation: colorPulse 5s infinite;
   }
 }

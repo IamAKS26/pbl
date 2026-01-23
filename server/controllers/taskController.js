@@ -1,5 +1,6 @@
 const Task = require('../models/Task');
 const Project = require('../models/Project');
+const Group = require('../models/Group');
 const { fetchCommits, parseGitHubUrl } = require('../config/github');
 
 // @desc    Get all tasks
@@ -14,9 +15,25 @@ exports.getTasks = async (req, res) => {
             query.project = projectId;
         }
 
-        // Students only see their own tasks
+        // Students see tasks if:
+        // 1. They are the assignee (direct assignment)
+        // 2. The task belongs to a project assigned to their group
         if (req.user.role === 'Student') {
-            query.assignee = req.user.id;
+            const group = await Group.findOne({ members: req.user.id });
+
+            if (group && group.project) {
+                // If student is in a group with a project, show ALL tasks for that project
+                // OR tasks explicitly assigned to them (though usually project tasks cover it)
+                query = {
+                    $or: [
+                        { project: group.project },
+                        { assignee: req.user.id }
+                    ]
+                }
+            } else {
+                // Fallback: only show direct assignments
+                query.assignee = req.user.id;
+            }
         }
 
         const tasks = await Task.find(query)
