@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import { useProject } from '../../context/ProjectContext';
 import api from '../../utils/api';
 
@@ -12,6 +14,8 @@ import { formatDateTime } from '../../utils/dateHelpers';
 
 const StudentDashboard = () => {
     const { user, logout } = useAuth();
+    const { theme, toggleTheme } = useTheme();
+    const { addToast } = useToast();
     const { tasks, fetchUserTasks, loading: tasksLoading } = useProject();
 
     // State
@@ -89,13 +93,13 @@ const StudentDashboard = () => {
     // --- MAIN LAYOUT ---
 
     return (
-        <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+        <div className="h-screen flex flex-col bg-gray-50 dark:bg-transparent overflow-hidden transition-colors duration-300">
             {/* 1. TOP NAVBAR */}
-            <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0 z-20 relative">
+            <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-white/10 flex items-center justify-between px-6 shrink-0 z-20 relative">
                 <div className="flex items-center gap-8">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold">P</div>
-                        <span className="font-bold text-gray-900 text-lg tracking-tight">PBL <span className="text-emerald-600">GyanSetu</span></span>
+                        <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/30">P</div>
+                        <span className="font-bold text-gray-900 dark:text-white text-lg tracking-tight">PBL <span className="text-emerald-600 dark:text-emerald-400">GyanSetu</span></span>
                     </div>
 
                     {/* Breadcrumbs / Context */}
@@ -110,6 +114,14 @@ const StudentDashboard = () => {
                 </div>
 
                 <div className="flex items-center gap-6">
+                    {/* Theme Toggle */}
+                    <button
+                        onClick={toggleTheme}
+                        className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
+                        title="Toggle Theme"
+                    >
+                        {theme === 'dark' ? '🌞' : '🌙'}
+                    </button>
                     {/* Gamification Stats */}
                     <div className="hidden md:flex items-center gap-4 bg-gray-50 px-4 py-1.5 rounded-full border border-gray-100">
                         <div className="flex items-center gap-2" title="Experience Points">
@@ -158,68 +170,118 @@ const StudentDashboard = () => {
                     <div className="h-full overflow-y-auto p-6 md:p-8">
                         <div className="max-w-7xl mx-auto">
                             {/* Welcome Banner */}
-                            <div className="mb-8 p-6 bg-gradient-to-r from-emerald-600 to-teal-500 rounded-2xl text-white shadow-lg relative overflow-hidden">
+                            <div className="mb-8 p-8 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-800 rounded-3xl text-white shadow-xl shadow-emerald-900/10 relative overflow-hidden animate-fade-in group">
                                 <div className="relative z-10">
-                                    <h1 className="text-2xl font-bold mb-2">Welcome Back, {user?.name.split(' ')[0]}! 🚀</h1>
-                                    <p className="text-emerald-50 opacity-90 max-w-xl">
-                                        Your team "{group?.name}" is currently in <span className="font-bold text-white">Phase 1: Planning</span>.
-                                        You have <span className="font-bold text-white underline decoration-amber-400 decoration-2 underline-offset-2">{tasks.filter(t => t.status !== 'Completed').length} active tasks</span> waiting for you.
-                                    </p>
+                                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                                        <div>
+                                            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-medium text-emerald-50 mb-3 border border-white/10">
+                                                <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
+                                                Active Session
+                                            </div>
+                                            <h1 className="text-3xl md:text-4xl font-display font-bold mb-3 tracking-tight">Welcome Back, {user?.name.split(' ')[0]}!</h1>
+                                            <p className="text-emerald-50/90 text-lg max-w-xl font-light">
+                                                Team "{group?.name}" is in <span className="font-semibold text-white">Action Mode</span>. You're making great progress!
+                                            </p>
+                                        </div>
+
+                                        {/* Deadline Badge */}
+                                        <div className="bg-white/10 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/20 flex items-center gap-4 hover:bg-white/15 transition-colors">
+                                            <div className="p-2 bg-amber-400/20 rounded-lg">
+                                                <svg className="w-6 h-6 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-xs text-emerald-100 uppercase font-bold tracking-wider">Time Remaining</span>
+                                                <span className="font-bold text-white text-xl font-display">
+                                                    {group?.project?.deadline ? Math.ceil((new Date(group.project.deadline) - new Date()) / (1000 * 60 * 60 * 24)) : '--'} Days
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress Bar */}
+                                    <div className="mt-8 bg-black/20 rounded-2xl p-5 backdrop-blur-sm border border-white/5">
+                                        <div className="flex justify-between text-sm font-medium text-emerald-50 mb-3">
+                                            <span className="font-display tracking-wide">Overall Progress</span>
+                                            <span className="font-mono">{Math.round((tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length / (tasks.length || 1)) * 100)}%</span>
+                                        </div>
+                                        <div className="w-full bg-emerald-900/30 rounded-full h-3 overflow-hidden backdrop-blur-md">
+                                            <div
+                                                className="bg-gradient-to-r from-amber-300 to-amber-500 h-3 rounded-full shadow-[0_0_15px_rgba(251,191,36,0.3)] relative"
+                                                style={{ width: `${Math.round((tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length / (tasks.length || 1)) * 100)}%` }}
+                                            >
+                                                <div className="absolute inset-0 bg-white/30 animate-shimmer"></div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center mt-3 text-xs text-emerald-100/60 font-medium">
+                                            <span>{tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length} / {tasks.length} tasks completed</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                {/* Abstract Shapes */}
-                                <div className="absolute right-0 top-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/3 blur-2xl"></div>
-                                <div className="absolute bottom-0 right-20 w-32 h-32 bg-amber-400 opacity-10 rounded-full translate-y-1/3 blur-xl"></div>
+
+                                {/* Background Decorations */}
+                                <div className="absolute right-0 top-0 w-96 h-96 bg-emerald-400 opacity-20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 animate-pulse-slow"></div>
+                                <div className="absolute bottom-0 left-0 w-64 h-64 bg-teal-300 opacity-10 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3"></div>
+                                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] mix-blend-overlay"></div>
                             </div>
 
                             {/* Task Grid */}
                             <div className="mb-6 flex items-center justify-between">
-                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                                    <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                <h3 className="text-xl font-display font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                    <span className="p-1.5 bg-emerald-100 text-emerald-600 rounded-lg">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                    </span>
                                     My Tasks
                                 </h3>
-                                {/* Filter Controls Could Go Here */}
                             </div>
 
                             {tasks.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {tasks.map(task => (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {tasks.map((task, idx) => (
                                         <div
                                             key={task._id}
                                             onClick={() => handleTaskClick(task)}
-                                            className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group flex flex-col"
+                                            style={{ animationDelay: `${idx * 50}ms` }}
+                                            className="glass-card p-6 cursor-pointer group flex flex-col h-full animate-slide-up hover:border-emerald-300/50 hover:bg-white/90 dark:hover:bg-gray-800/80"
                                         >
-                                            <div className="flex justify-between items-start mb-3">
-                                                <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${task.priority === 'High' ? 'bg-red-50 text-red-600' :
-                                                    task.priority === 'Medium' ? 'bg-amber-50 text-amber-600' :
-                                                        'bg-blue-50 text-blue-600'
+                                            <div className="flex justify-between items-start mb-4">
+                                                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${task.priority === 'High' ? 'bg-red-50 text-red-600 border-red-100' :
+                                                    task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                        'bg-blue-50 text-blue-600 border-blue-100'
                                                     }`}>
                                                     {task.priority}
                                                 </span>
                                                 {task.submissionType === 'code' && (
-                                                    <span className="text-gray-400 group-hover:text-emerald-500 transition-colors" title="Coding Task">
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
-                                                    </span>
+                                                    <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                                                    </div>
                                                 )}
                                             </div>
 
-                                            <h4 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-emerald-700 transition-colors">{task.title}</h4>
-                                            <p className="text-sm text-gray-500 mb-4 line-clamp-3 flex-1">{task.description}</p>
+                                            <h4 className="font-display font-semibold text-lg text-gray-800 dark:text-gray-100 mb-2 line-clamp-2 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">{task.title}</h4>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 line-clamp-2 flex-1 leading-relaxed">{task.description}</p>
 
-                                            <div className="flex items-center justify-between pt-4 border-t border-gray-50 mt-auto">
-                                                <span className={`text-xs font-medium px-2 py-1 rounded-full ${task.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+                                            <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-auto">
+                                                <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${task.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
                                                     task.status === 'Review' ? 'bg-purple-100 text-purple-700' :
                                                         'bg-gray-100 text-gray-600'
                                                     }`}>
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${task.status === 'Completed' ? 'bg-emerald-500' :
+                                                        task.status === 'Review' ? 'bg-purple-500' :
+                                                            'bg-gray-400'
+                                                        }`}></span>
                                                     {task.status}
                                                 </span>
-                                                <span className="text-xs text-gray-400">{formatDateTime(task.updatedAt)}</span>
+                                                <span className="text-xs font-medium text-gray-400 group-hover:text-emerald-600/70 transition-colors">{formatDateTime(task.updatedAt)}</span>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="text-center py-20 bg-white rounded-xl border border-gray-200 border-dashed">
-                                    <p className="text-gray-400 mb-2">No tasks assigned yet.</p>
+                                <div className="text-center py-24 glass rounded-3xl border border-dashed border-gray-300">
+                                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
+                                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                    </div>
+                                    <p className="text-gray-500 font-medium mb-1">No tasks assigned yet</p>
                                     <p className="text-sm text-gray-400">Wait for your team to plan or check with your teacher.</p>
                                 </div>
                             )}
@@ -248,6 +310,19 @@ const StudentDashboard = () => {
                                         {/* Placeholder for richer instructions if we had markdown */}
                                     </div>
                                 </div>
+
+                                {selectedTask.feedback && (
+                                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 animate-fade-in">
+                                        <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                                            <span>💬 Teacher Feedback</span>
+                                        </h3>
+                                        <p className="text-blue-800 text-sm mb-2 whitespace-pre-wrap">{selectedTask.feedback}</p>
+                                        <div className="flex justify-between items-center text-xs text-blue-600 border-t border-blue-200 pt-2 mt-2">
+                                            <span>By: {selectedTask.feedbackBy?.name || 'Teacher'}</span>
+                                            <span>{selectedTask.feedbackAt && new Date(selectedTask.feedbackAt).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="border-t border-gray-100 pt-6">
                                     <h3 className="font-bold text-gray-900 mb-3">Acceptance Criteria</h3>
@@ -310,9 +385,9 @@ const StudentDashboard = () => {
                                                 try {
                                                     setLoading(true);
                                                     await api.post(`/api/tasks/${selectedTask._id}/evidence`, { url, resourceType: 'link' });
-                                                    alert('Evidence added!');
+                                                    addToast('Evidence added!', 'success');
                                                     await fetchUserTasks();
-                                                } catch (err) { alert('Failed: ' + err.message); }
+                                                } catch (err) { addToast('Failed: ' + err.message, 'error'); }
                                                 finally { setLoading(false); }
                                             }} className="flex gap-2">
                                                 <input name="url" type="url" placeholder="https://docs.google.com/..." className="input flex-1" required />
@@ -354,9 +429,9 @@ const StudentDashboard = () => {
                                                     try {
                                                         setLoading(true);
                                                         await api.post(`/api/tasks/${selectedTask._id}/github-repo`, { repoUrl });
-                                                        alert('Repo linked!');
+                                                        addToast('Repo linked!', 'success');
                                                         await fetchUserTasks();
-                                                    } catch (err) { alert('Failed: ' + err.message); }
+                                                    } catch (err) { addToast('Failed: ' + err.message, 'error'); }
                                                     finally { setLoading(false); }
                                                 }} className="flex gap-2">
                                                     <input name="repoUrl" type="url" placeholder="https://github.com/user/repo" className="input flex-1" required />
@@ -393,18 +468,18 @@ const StudentDashboard = () => {
                                                         },
                                                         status: 'Review'
                                                     });
-                                                    alert('Code submitted successfully! Task moved to Review.');
+                                                    addToast('Code submitted successfully! Task moved to Review.', 'success');
                                                     await fetchUserTasks();
                                                     handleBackToDashboard();
                                                 } catch (error) {
                                                     console.error('Submission error:', error);
-                                                    alert('Failed to submit code');
+                                                    addToast('Failed to submit code', 'error');
                                                 } finally {
                                                     setLoading(false);
                                                 }
                                             }}
                                         >
-                                            {loading ? 'Submitting...' : 'Submit Solution'}
+                                            {loading ? 'Submitting...' : (selectedTask.feedback ? 'Resubmit Solution' : 'Submit Solution')}
                                         </button>
                                     </div>
                                 </div>
@@ -418,10 +493,10 @@ const StudentDashboard = () => {
                                         onClick={async () => {
                                             try {
                                                 await api.put(`/api/tasks/${selectedTask._id}`, { status: 'Review' });
-                                                alert('Task submitted for review!');
+                                                addToast('Task submitted for review!', 'success');
                                                 await fetchUserTasks();
                                                 handleBackToDashboard();
-                                            } catch (e) { alert('Error: ' + e.message); }
+                                            } catch (e) { addToast('Error: ' + e.message, 'error'); }
                                         }}
                                     >
                                         Mark as Ready for Review

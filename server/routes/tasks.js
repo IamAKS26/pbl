@@ -9,6 +9,7 @@ const {
     addEvidence,
     linkGitHubRepo,
     syncGitHubCommits,
+    addFeedback,
 } = require('../controllers/taskController');
 const { protect, authorizeTeacher } = require('../middleware/auth');
 
@@ -27,5 +28,7 @@ router.route('/:id')
 router.post('/:id/evidence', addEvidence);
 router.post('/:id/github-repo', linkGitHubRepo);
 router.post('/:id/sync-commits', syncGitHubCommits);
+
+router.patch('/:id/feedback', authorizeTeacher, addFeedback);
 
 module.exports = router;

@@ -18,7 +18,7 @@ const taskSchema = new mongoose.Schema({
     assignee: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: false
     },
     status: {
         type: String,
@@ -75,6 +75,18 @@ const taskSchema = new mongoose.Schema({
         code: String,
         language: String,
         submittedAt: Date,
+    },
+    // New fields for teacher feedback
+    feedback: {
+        type: String,
+        default: ''
+    },
+    feedbackBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
+    feedbackAt: {
+        type: Date
     },
 }, {
     timestamps: true,

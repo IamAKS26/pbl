@@ -111,6 +111,25 @@ const ReviewsTab = () => {
                         >
                             Approve & Award XP
                         </button>
+                        <button
+                            onClick={async () => {
+                                const feedback = window.prompt('Enter feedback for the student');
+                                if (feedback) {
+                                    try {
+                                        await api.patch(`/api/tasks/${task._id}/feedback`, { feedback });
+                                        alert('Feedback sent');
+                                        // Refresh list after feedback
+                                        fetchReviewTasks();
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert('Failed to send feedback');
+                                    }
+                                }
+                            }}
+                            className="btn btn-secondary flex-1 md:flex-none"
+                        >
+                            Add Feedback
+                        </button>
                     </div>
                 </div>
             ))}

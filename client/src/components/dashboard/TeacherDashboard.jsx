@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import { formatDate } from '../../utils/dateHelpers';
 import api from '../../utils/api';
 import ReviewsTab from './ReviewsTab';
@@ -11,6 +13,8 @@ import { PROJECT_TEMPLATES } from '../../constants/templates';
 const TeacherDashboard = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+    const { theme, toggleTheme } = useTheme();
+    const { addToast } = useToast();
     const { projects, fetchProjects, createProject, deleteProject, loading, assignTemplate } = useProject();
 
     // UI State
@@ -19,15 +23,63 @@ const TeacherDashboard = () => {
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('projects');
     const [loadingData, setLoadingData] = useState(false);
+    const [pendingReviewsCount, setPendingReviewsCount] = useState(0);
+
+    useEffect(() => {
+        // Fetch pending reviews count
+        const fetchReviewCount = async () => {
+            // Optimization: create specific endpoint for count or lightweight fetch
+            // For MVP, just reusing logic but ideally this should be a light endpoint
+            try {
+                const res = await api.get('/api/tasks');
+                const count = res.data.tasks.filter(t => t.status === 'Review' || t.status === 'In Review').length;
+                setPendingReviewsCount(count);
+            } catch (err) {
+                console.error('Failed to fetch review count', err);
+            }
+        };
+        fetchReviewCount();
+    }, []);
 
     // Data State
     const [formData, setFormData] = useState({
         title: '',
         description: '',
         deadline: '',
+        tasks: [] // Added tasks array to state
     });
     const [students, setStudents] = useState([]);
     const [groups, setGroups] = useState([]);
+
+    // Notifications State
+    const [notifications, setNotifications] = useState([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const unreadCount = notifications.filter(n => !n.isRead).length;
+
+    useEffect(() => {
+        // Poll for notifications every minute or on mount
+        const fetchNotifications = async () => {
+            try {
+                const res = await api.get('/api/notifications');
+                setNotifications(res.data.notifications);
+            } catch (err) {
+                console.error('Failed to fetch notifications', err);
+            }
+        };
+
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const markAsRead = async (id) => {
+        try {
+            await api.put(`/api/notifications/${id}/read`);
+            setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+        } catch (err) {
+            console.error('Failed to mark read', err);
+        }
+    };
 
     // Group Management State
     const [selectedGroup, setSelectedGroup] = useState(null);
@@ -105,11 +157,11 @@ const TeacherDashboard = () => {
             // 4. Refresh
             await fetchGroupsAndStudents();
             setShowGroupWizard(false);
-            alert(`Created ${newGroups.length} balanced groups!`);
+            addToast(`Created ${newGroups.length} balanced groups!`, 'success');
 
         } catch (err) {
             console.error('Error saving groups:', err);
-            alert('Failed to save groups');
+            addToast('Failed to save groups', 'error');
         } finally {
             setLoadingData(false);
         }
@@ -121,17 +173,17 @@ const TeacherDashboard = () => {
             fetchGroupsAndStudents();
         } catch (err) {
             console.error(err);
-            alert('Failed to update group members');
+            addToast('Failed to update group members', 'error');
         }
     };
 
     const handleCreateManualGroup = async () => {
         if (!newGroupData.name.trim()) {
-            alert('Please enter a group name');
+            addToast('Please enter a group name', 'error');
             return;
         }
         if (newGroupData.members.length === 0) {
-            alert('Please select at least one member');
+            addToast('Please select at least one member', 'error');
             return;
         }
 
@@ -141,10 +193,10 @@ const TeacherDashboard = () => {
             await fetchGroupsAndStudents();
             setShowCreateGroupModal(false);
             setNewGroupData({ name: '', members: [] });
-            alert('Group created successfully!');
+            addToast('Group created successfully!', 'success');
         } catch (err) {
             console.error(err);
-            alert('Failed to create group');
+            addToast('Failed to create group', 'error');
         } finally {
             setLoadingData(false);
         }
@@ -180,10 +232,10 @@ const TeacherDashboard = () => {
 
             // Refresh list
             fetchGroupsAndStudents();
-            alert('Group name updated!');
+            addToast('Group name updated!', 'success');
         } catch (err) {
             console.error(err);
-            alert('Failed to update group name');
+            addToast('Failed to update group name', 'error');
         }
     };
 
@@ -227,10 +279,10 @@ const TeacherDashboard = () => {
             await api.put(`/api/groups/${selectedGroup._id}`, { project: projectId });
             fetchGroupsAndStudents();
             setShowAssignProjectModal(false);
-            alert('Project assigned successfully!');
+            addToast('Project assigned successfully!', 'success');
         } catch (err) {
             console.error(err);
-            alert('Failed to assign project');
+            addToast('Failed to assign project', 'error');
         }
     };
 
@@ -242,9 +294,9 @@ const TeacherDashboard = () => {
         if (result.success) {
             fetchGroupsAndStudents();
             setShowAssignProjectModal(false);
-            alert('Template assigned successfully!');
+            addToast('Template assigned successfully!', 'success');
         } else {
-            alert(result.message);
+            addToast(result.message, 'error');
         }
     };
 
@@ -286,21 +338,131 @@ const TeacherDashboard = () => {
         }
     };
 
+    // AI Generation State
+    const [showAIModal, setShowAIModal] = useState(false);
+    const [aiParams, setAiParams] = useState({ topic: '', difficulty: 'Medium', gradeLevel: '9th' });
+    const [generatingAI, setGeneratingAI] = useState(false);
+
+    const handleGenerateAI = async (e) => {
+        e.preventDefault();
+        setGeneratingAI(true);
+        try {
+            const res = await api.post('/api/ai/generate-template', aiParams);
+            const template = res.data.template;
+            // Auto-fill the create form with generated data
+            setFormData({
+                title: template.title,
+                description: template.description,
+                deadline: formData.deadline, // keep existing if set
+                tasks: template.suggestedTasks || [] // Store AI tasks
+            });
+
+            // Store extra data to be used when "Create Project" is clicked?
+            // For now, let's just populate the form and notify the user. 
+            // The template might have tasks/phases that need to be created after the project.
+            // Simplified: Just pre-fill title/desc. 
+            // Better: Create the project immediately with this structure.
+            // Let's create it immediately like "Use Template".
+
+            // Immediately ask to create
+            if (window.confirm(`Generated "${template.title}" with ${template.suggestedTasks?.length || 0} tasks. Create this project now?`)) {
+                const projectData = {
+                    title: template.title,
+                    description: template.description,
+                    // Map AI phases/tasks to our structure if possible. 
+                    // Our createProject currently only takes title/desc/deadline.
+                    // We might need a more robust "createFromTemplate" method.
+                    // For this MVP, let's just prefill the form and close AI modal.
+                    tasks: template.suggestedTasks || []
+                };
+                setFormData(projectData);
+                setShowAIModal(false);
+                setShowCreateModal(true);
+                // alert('Project details generated! Review and click Create.');
+            }
+
+        } catch (err) {
+            console.error(err);
+            addToast('Failed to generate template through AI', 'error');
+        } finally {
+            setGeneratingAI(false);
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
             {/* Navbar */}
-            <nav className="bg-white shadow-sm border-b border-gray-200">
+            <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-white/10 sticky top-0 z-30">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
-                        <div className="flex items-center">
-                            <h1 className="text-2xl font-bold text-emerald-700">PBL by GyanSetu</h1>
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/30">P</div>
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">PBL <span className="text-emerald-600 dark:text-emerald-400">Teacher</span></h1>
                         </div>
-                        <div className="flex items-center space-x-4">
-                            <span className="text-sm text-gray-600">Welcome, {user?.name}</span>
-                            <span className="badge bg-emerald-100 text-emerald-700">Teacher</span>
+                        <div className="flex items-center space-x-6">
+                            {/* Theme Toggle */}
+                            <button
+                                onClick={toggleTheme}
+                                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
+                                title="Toggle Theme"
+                            >
+                                {theme === 'dark' ? '🌞' : '🌙'}
+                            </button>
+
+                            {/* Notification Bell */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowNotifications(!showNotifications)}
+                                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 relative transition-colors"
+                                >
+                                    <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                    </svg>
+                                    {unreadCount > 0 && (
+                                        <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900 animate-pulse" />
+                                    )}
+                                </button>
+
+                                {/* Dropdown */}
+                                {showNotifications && (
+                                    <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-glass py-1 z-50 ring-1 ring-black ring-opacity-5 max-h-96 overflow-y-auto border border-gray-100 dark:border-white/10">
+                                        <div className="px-4 py-3 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+                                            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Notifications</h3>
+                                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">{unreadCount} unread</span>
+                                        </div>
+                                        {notifications.length > 0 ? (
+                                            notifications.map(notification => (
+                                                <div
+                                                    key={notification._id}
+                                                    className={`px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-white/5 last:border-0 cursor-pointer ${!notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                                                    onClick={() => !notification.isRead && markAsRead(notification._id)}
+                                                >
+                                                    <p className="text-sm text-gray-800 dark:text-gray-200">{notification.message}</p>
+                                                    <p className="text-xs text-gray-400 mt-1">{formatDate(notification.createdAt)}</p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+                                                No notifications yet
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="hidden md:flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-white/10">
+                                <div className="text-right">
+                                    <div className="text-sm font-medium text-gray-900 dark:text-white">{user?.name}</div>
+                                    <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Teacher Access</div>
+                                </div>
+                                <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold border-2 border-white dark:border-white/10 shadow-sm">
+                                    {user?.name?.charAt(0) || 'T'}
+                                </div>
+                            </div>
+
                             <button
                                 onClick={logout}
-                                className="btn btn-secondary text-sm"
+                                className="text-sm text-gray-500 hover:text-red-500 transition-colors font-medium ml-2"
                             >
                                 Logout
                             </button>
@@ -311,41 +473,125 @@ const TeacherDashboard = () => {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-8">
-                    <div className="flex justify-between items-center mb-6">
+                <div className="mb-10">
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-6 mb-8">
                         <div>
-                            <h2 className="text-3xl font-bold text-gray-900">
-                                {activeTab === 'projects' ? 'My Projects' :
-                                    activeTab === 'students' ? 'Student Performance' : 'Group Management'}
+                            <h2 className="text-4xl font-display font-bold text-gray-900 dark:text-white tracking-tight mb-2">
+                                {activeTab === 'projects' ? 'Project Command Center' :
+                                    activeTab === 'students' ? 'Student Performance' :
+                                        activeTab === 'groups' ? 'Team Management' : 'Review Queue'}
                             </h2>
-                            <p className="mt-1 text-sm text-gray-600">
-                                {activeTab === 'projects' ? 'Manage your project-based learning activities' :
-                                    activeTab === 'students' ? 'View student mastery scores and progress' :
-                                        activeTab === 'reviews' ? 'Review and grade student submissions' :
-                                            'Create and manage student groups'}
+                            <p className="text-lg text-gray-500 dark:text-gray-400 max-w-2xl">
+                                {activeTab === 'projects' ? 'Oversee and manage active learning campaigns.' :
+                                    activeTab === 'students' ? 'Track mastery levels and individual progress.' :
+                                        activeTab === 'reviews' ? 'Grade submissions and provide feedback.' :
+                                            'Organize students into balanced, effective teams.'}
                             </p>
                         </div>
                         {activeTab === 'projects' && (
-                            <button
-                                onClick={() => setShowCreateModal(true)}
-                                className="btn btn-primary"
-                            >
-                                + Create Project
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowAIModal(true)}
+                                    className="btn bg-purple-600 hover:bg-purple-700 text-white border-none shadow-md flex items-center gap-2"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                    Generate with AI
+                                </button>
+                                <button
+                                    onClick={() => setShowCreateModal(true)}
+                                    className="btn btn-primary"
+                                >
+                                    + Create Project
+                                </button>
+                            </div>
                         )}
                     </div>
 
-                    <div className="flex space-x-1 bg-gray-200 p-1 rounded-lg inline-flex">
+                    {/* AI Modal */}
+                    {showAIModal && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                            <div className="glass-panel p-6 max-w-md w-full animate-scale-in border border-white/20 shadow-2xl">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+                                        ✨ Generate Project with AI
+                                    </h3>
+                                    <button onClick={() => setShowAIModal(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+                                </div>
+
+                                <form onSubmit={handleGenerateAI} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Topic / Subject</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            className="input"
+                                            placeholder="e.g. Sustainable Energy, Ancient Rome..."
+                                            value={aiParams.topic}
+                                            onChange={e => setAiParams({ ...aiParams, topic: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Grade Level</label>
+                                            <select
+                                                className="input"
+                                                value={aiParams.gradeLevel}
+                                                onChange={e => setAiParams({ ...aiParams, gradeLevel: e.target.value })}
+                                            >
+                                                <option>6th</option><option>7th</option><option>8th</option>
+                                                <option>9th</option><option>10th</option><option>11th</option><option>12th</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Difficulty</label>
+                                            <select
+                                                className="input"
+                                                value={aiParams.difficulty}
+                                                onChange={e => setAiParams({ ...aiParams, difficulty: e.target.value })}
+                                            >
+                                                <option>Beginner</option>
+                                                <option>Medium</option>
+                                                <option>Advanced</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <button
+                                            type="submit"
+                                            disabled={generatingAI}
+                                            className="btn w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-none relative overflow-hidden group"
+                                        >
+                                            {generatingAI ? (
+                                                <span className="flex items-center justify-center gap-2">
+                                                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                                    Dreaming...
+                                                </span>
+                                            ) : 'Generate Template ✨'}
+                                        </button>
+                                    </div>
+                                    <p className="text-xs text-center text-gray-500 mt-2">Powered by Gemini AI</p>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex space-x-1 bg-white/50 dark:bg-white/5 p-1.5 rounded-xl border border-white/20 backdrop-blur-sm inline-flex shadow-sm">
                         {['projects', 'students', 'groups', 'reviews'].map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
-                                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === tab
-                                    ? 'bg-white text-emerald-700 shadow'
-                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 relative ${activeTab === tab
+                                    ? 'bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-md transform scale-105'
+                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-white/5'
                                     }`}
                             >
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                {tab === 'reviews' && pendingReviewsCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm animate-pulse">
+                                        {pendingReviewsCount}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -390,10 +636,10 @@ const TeacherDashboard = () => {
                                 {projects.map((project) => (
                                     <div
                                         key={project._id}
-                                        className="card hover:shadow-lg transition-all duration-300 animate-fade-in group"
+                                        className="glass-card p-6 flex flex-col group h-full"
                                     >
-                                        <div className="flex items-start justify-between mb-3">
-                                            <h3 className="text-lg font-semibold text-gray-900 flex-1">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <h3 className="text-xl font-display font-bold text-gray-800 dark:text-white flex-1 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                                                 {project.title}
                                             </h3>
                                             <button
@@ -406,7 +652,7 @@ const TeacherDashboard = () => {
                                             </button>
                                         </div>
 
-                                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 line-clamp-3 leading-relaxed flex-1">
                                             {project.description}
                                         </p>
 
@@ -415,8 +661,9 @@ const TeacherDashboard = () => {
                                                 {project.students?.length || 0} students
                                             </span>
                                             {project.deadline && (
-                                                <span className="text-gray-500">
-                                                    Due: {formatDate(project.deadline)}
+                                                <span className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    {formatDate(project.deadline)}
                                                 </span>
                                             )}
                                         </div>
@@ -435,24 +682,24 @@ const TeacherDashboard = () => {
                 )}
 
                 {activeTab === 'students' && (
-                    <div className="bg-white rounded-lg shadow overflow-hidden">
+                    <div className="glass-panel overflow-hidden">
                         {loadingData ? (
                             <div className="p-8 text-center text-gray-500">Loading students...</div>
                         ) : (
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
+                            <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
+                                <thead className="bg-gray-50/50 dark:bg-gray-800/50">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mastery Score</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Mastery Score</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="bg-transparent divide-y divide-gray-200 dark:divide-white/5">
                                     {students.map((student) => (
-                                        <tr key={student._id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{student.name}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.email}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <tr key={student._id} className="hover:bg-white/50 dark:hover:bg-white/5 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{student.name}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{student.email}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                                 {student.mastery ? JSON.stringify(student.mastery) : 'N/A'}
                                             </td>
                                         </tr>
@@ -469,7 +716,7 @@ const TeacherDashboard = () => {
 
                 {activeTab === 'groups' && (
                     <div>
-                        <div className="mb-4 flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                        <div className="mb-4 flex justify-between items-center glass-panel p-4">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900">Groups</h3>
                                 <p className="text-sm text-gray-500">Manage student teams and assignments</p>
@@ -498,9 +745,9 @@ const TeacherDashboard = () => {
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {groups.map(group => (
-                                    <div key={group._id} className="bg-white p-4 rounded-lg shadow border border-gray-200">
+                                    <div key={group._id} className="glass-card p-5 border border-white/40 dark:border-white/5">
                                         <div className="flex justify-between items-start mb-3">
-                                            <h4 className="font-semibold text-gray-900">{group.name}</h4>
+                                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">{group.name}</h4>
                                             <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Avg Mastery: {group.averageMastery}</span>
                                         </div>
                                         <div className="mb-3">
@@ -538,6 +785,15 @@ const TeacherDashboard = () => {
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                                 {group.project ? 'Change Project' : 'Assign Project'}
                                             </button>
+                                            {group.project && (
+                                                <button
+                                                    onClick={() => navigate(`/project/${group.project._id}`)}
+                                                    className="col-span-2 animate-color-pulse flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 hover:shadow-md text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                                    Open Board
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -549,9 +805,9 @@ const TeacherDashboard = () => {
 
             {/* Create Project Modal */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="bg-white rounded-xl p-6 max-w-md w-full animate-scale-in">
-                        <h3 className="text-lg font-semibold mb-4">Create New Project</h3>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="glass-panel p-8 max-w-lg w-full animate-scale-in shadow-2xl border border-white/20">
+                        <h3 className="text-xl font-display font-bold mb-6 text-gray-900 dark:text-white">Create New Project</h3>
 
                         {error && (
                             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
@@ -634,11 +890,11 @@ const TeacherDashboard = () => {
 
             {/* Edit Members Modal */}
             {showEditMembersModal && selectedGroup && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="bg-white rounded-xl p-6 max-w-2xl w-full animate-scale-in max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="glass-panel p-6 max-w-2xl w-full animate-scale-in max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold">Edit Group</h3>
-                            <button onClick={() => setShowEditMembersModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                            <h3 className="text-xl font-display font-bold text-gray-900 dark:text-white">Edit Group</h3>
+                            <button onClick={() => setShowEditMembersModal(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
                         </div>
 
                         <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -709,9 +965,9 @@ const TeacherDashboard = () => {
 
             {/* Assign Project Modal */}
             {showAssignProjectModal && selectedGroup && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="bg-white rounded-xl p-6 max-w-md w-full animate-scale-in">
-                        <h3 className="text-lg font-semibold mb-4">Assign Project to {selectedGroup.name}</h3>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="glass-panel p-6 max-w-md w-full animate-scale-in border border-white/20 shadow-2xl">
+                        <h3 className="text-xl font-display font-bold mb-4 text-gray-900 dark:text-white">Assign Project to {selectedGroup.name}</h3>
                         <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
                             {/* Option 1: Existing Projects */}
                             <div>
@@ -782,11 +1038,11 @@ const TeacherDashboard = () => {
 
             {/* Manual Create Group Modal */}
             {showCreateGroupModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="bg-white rounded-xl p-6 max-w-lg w-full animate-scale-in">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="glass-panel p-6 max-w-lg w-full animate-scale-in border border-white/20 shadow-2xl">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-gray-900">Create New Group</h3>
-                            <button onClick={() => setShowCreateGroupModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+                            <h3 className="text-xl font-display font-bold text-gray-900 dark:text-white">Create New Group</h3>
+                            <button onClick={() => setShowCreateGroupModal(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
                         </div>
 
                         <div className="space-y-4">

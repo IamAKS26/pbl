@@ -37,20 +37,22 @@ const TaskCard = ({ task, onClick, onSubmitClick, isStudent = false }) => {
             {...attributes}
             {...listeners}
             onClick={onClick}
-            className={`card relative group hover:shadow-lg transition-all duration-200 p-4 border-l-4 
-                ${isCompleted ? 'border-green-500 bg-green-50/50' :
-                    isPending ? 'border-yellow-400' : 'border-emerald-500'}
+            className={`glass-card relative group p-4 border border-white/60 hover:border-emerald-300/50 transition-all duration-300
+                ${isCompleted ? 'opacity-75 bg-gray-50/50' : 'bg-white/80'}
             `}
         >
-            <div className="flex items-start justify-between mb-2">
-                <h4 className={`font-medium text-gray-900 flex-1 ${isCompleted ? 'line-through text-gray-500' : ''}`}>
+            <div className="flex items-start justify-between mb-3">
+                <h4 className={`font-display font-semibold text-gray-800 flex-1 leading-tight ${isCompleted ? 'line-through text-gray-400' : ''}`}>
                     {task.title}
                 </h4>
-                <div className="flex gap-1">
-                    {isPending && <span className="badge bg-yellow-100 text-yellow-800 text-xs">Under Review</span>}
-                    {isCompleted && <span className="badge bg-green-100 text-green-800 text-xs">Done</span>}
+                <div className="flex gap-1 shrink-0 ml-2">
+                    {isPending && <span className="px-2 py-0.5 rounded-md bg-yellow-50 text-yellow-700 text-[10px] font-bold border border-yellow-100">Review</span>}
+                    {isCompleted && <span className="px-2 py-0.5 rounded-md bg-green-50 text-green-700 text-[10px] font-bold border border-green-100">Done</span>}
                     {!isPending && !isCompleted && (
-                        <span className={`badge ${getPriorityColor(task.priority)} text-xs ml-2`}>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${task.priority === 'High' ? 'bg-red-50 text-red-600 border-red-100' :
+                                task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                    'bg-blue-50 text-blue-600 border-blue-100'
+                            }`}>
                             {task.priority}
                         </span>
                     )}

@@ -5,6 +5,7 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    withCredentials: true, // optional, useful for cookies/sessions
 });
 
 // Request interceptor to add token
@@ -16,9 +17,7 @@ api.interceptors.request.use(
         }
         return config;
     },
-    (error) => {
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
 
 // Response interceptor for error handling

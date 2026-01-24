@@ -11,20 +11,33 @@ const Login = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
 
+    const validate = () => {
+        if (!email.trim() || !password) {
+            setError('Both email and password are required.');
+            return false;
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            setError('Please enter a valid email address.');
+            return false;
+        }
+        return true;
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-        setLoading(true);
+        if (!validate()) return;
 
+        setLoading(true);
         const result = await login(email, password);
+        setLoading(false);
 
         if (result.success) {
             navigate('/dashboard');
         } else {
-            setError(result.message);
+            setError(result.message ?? 'Login failed. Please try again.');
         }
-
-        setLoading(false);
     };
 
     return (
@@ -36,11 +49,11 @@ const Login = () => {
                         Sign in to your account
                     </h2>
                     <p className="mt-2 text-sm text-gray-600">
-                        Project-Based Learning Management
+                        Project‑Based Learning Management
                     </p>
                 </div>
 
-                <form className="mt-8 space-y-6 card" onSubmit={handleSubmit}>
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     {error && (
                         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg animate-slide-up">
                             {error}
@@ -56,7 +69,6 @@ const Login = () => {
                                 id="email"
                                 name="email"
                                 type="email"
-                                autoComplete="email"
                                 required
                                 className="input"
                                 placeholder="teacher@example.com"
@@ -73,7 +85,6 @@ const Login = () => {
                                 id="password"
                                 name="password"
                                 type="password"
-                                autoComplete="current-password"
                                 required
                                 className="input"
                                 placeholder="••••••••"

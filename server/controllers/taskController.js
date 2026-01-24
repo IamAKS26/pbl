@@ -1,6 +1,7 @@
 const Task = require('../models/Task');
 const Project = require('../models/Project');
 const Group = require('../models/Group');
+const Notification = require('../models/Notification'); // Import Notification model
 const { fetchCommits, parseGitHubUrl } = require('../config/github');
 
 // @desc    Get all tasks
@@ -39,6 +40,7 @@ exports.getTasks = async (req, res) => {
         const tasks = await Task.find(query)
             .populate('assignee', 'name email')
             .populate('project', 'title')
+            .populate('feedbackBy', 'name email')
             .sort({ createdAt: -1 });
 
         res.status(200).json({
@@ -63,7 +65,8 @@ exports.getTask = async (req, res) => {
     try {
         const task = await Task.findById(req.params.id)
             .populate('assignee', 'name email')
-            .populate('project', 'title teacher');
+            .populate('project', 'title teacher')
+            .populate('feedbackBy', 'name email');
 
         if (!task) {
             return res.status(404).json({
@@ -187,6 +190,23 @@ exports.updateTask = async (req, res) => {
             .populate('assignee', 'name email')
             .populate('project', 'title');
 
+        // NOTIFICATION LOGIC:
+        // If student submits code (status change to Review) or just code submission
+        if (req.user.role === 'Student' && (req.body.status === 'Review' || req.body.codeSubmission)) {
+            // Find project teacher
+            const project = await Project.findById(updatedTask.project._id || updatedTask.project);
+            if (project && project.teacher) {
+                await Notification.create({
+                    recipient: project.teacher,
+                    sender: req.user.id,
+                    type: 'submission',
+                    message: `${req.user.name} submitted code for task "${updatedTask.title}"`,
+                    relatedId: updatedTask._id,
+                    onModel: 'Task'
+                });
+            }
+        }
+
         res.status(200).json({
             success: true,
             message: 'Task updated successfully',
@@ -273,6 +293,19 @@ exports.addEvidence = async (req, res) => {
 
         await task.save();
 
+        // NOTIFICATION LOGIC: Evidence Added
+        const project = await Project.findById(task.project);
+        if (project && project.teacher) {
+            await Notification.create({
+                recipient: project.teacher,
+                sender: req.user.id,
+                type: 'evidence',
+                message: `${req.user.name} added evidence to task "${task.title}"`,
+                relatedId: task._id,
+                onModel: 'Task'
+            });
+        }
+
         res.status(200).json({
             success: true,
             message: 'Evidence added successfully',
@@ -322,6 +355,19 @@ exports.linkGitHubRepo = async (req, res) => {
         };
 
         await task.save();
+
+        // NOTIFICATION LOGIC: Repo Linked
+        const project = await Project.findById(task.project);
+        if (project && project.teacher) {
+            await Notification.create({
+                recipient: project.teacher,
+                sender: req.user.id,
+                type: 'submission',
+                message: `${req.user.name} linked GitHub repo to task "${task.title}"`,
+                relatedId: task._id,
+                onModel: 'Task'
+            });
+        }
 
         res.status(200).json({
             success: true,
@@ -383,5 +429,45 @@ exports.syncGitHubCommits = async (req, res) => {
             success: false,
             message: error.message || 'Error syncing GitHub commits',
         });
+    }
+};
+
+// @desc    Add teacher feedback to task
+// @route   PATCH /api/tasks/:id/feedback
+// @access  Private (Teacher only)
+exports.addFeedback = async (req, res) => {
+    try {
+        const { feedback } = req.body;
+        if (!feedback) {
+            return res.status(400).json({ success: false, message: 'Feedback text is required' });
+        }
+        const task = await Task.findById(req.params.id).populate('project');
+        if (!task) {
+            return res.status(404).json({ success: false, message: 'Task not found' });
+        }
+        // Verify teacher is the project teacher
+        if (task.project.teacher.toString() !== req.user.id) {
+            return res.status(403).json({ success: false, message: 'Not authorized to add feedback' });
+        }
+        task.feedback = feedback;
+        task.feedbackBy = req.user.id;
+        task.feedbackAt = new Date();
+        await task.save();
+        // Notify student
+        await Notification.create({
+            recipient: task.assignee,
+            sender: req.user.id,
+            type: 'feedback',
+            message: `${req.user.name} provided feedback for task "${task.title}"`,
+            relatedId: task._id,
+            onModel: 'Task'
+        });
+        const populatedTask = await Task.findById(task._id)
+            .populate('assignee', 'name email')
+            .populate('project', 'title');
+        res.status(200).json({ success: true, message: 'Feedback added', task: populatedTask });
+    } catch (error) {
+        console.error('Add feedback error:', error);
+        res.status(500).json({ success: false, message: error.message || 'Error adding feedback' });
     }
 };

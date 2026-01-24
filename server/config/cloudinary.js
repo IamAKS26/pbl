@@ -10,10 +10,15 @@ cloudinary.config({
 // Test connection
 const testConnection = async () => {
     try {
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+            console.warn('⚠️ Cloudinary credentials missing in .env');
+            return;
+        }
         await cloudinary.api.ping();
         console.log('✅ Cloudinary Connected');
     } catch (error) {
-        console.error('❌ Cloudinary Connection Error:', error.message);
+        console.error('❌ Cloudinary Connection Warning:', error.message || error);
+        // Do not throw/crash, just warn.
     }
 };
 

@@ -9,10 +9,14 @@ dotenv.config();
 // Connect to MongoDB
 connectDB();
 
+// Force Restart 1
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:5173'],
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -22,9 +26,12 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/upload', require('./routes/upload'));
 app.use('/api/github', require('./routes/github'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/students', require('./routes/students'));
 app.use('/api/groups', require('./routes/groups'));
+app.use('/api/ai', require('./routes/ai'));
+app.use('/api/judge0', require('./routes/judge0'));
 
 // Health check route
 app.get('/', (req, res) => {
