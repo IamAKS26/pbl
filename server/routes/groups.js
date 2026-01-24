@@ -44,7 +44,7 @@ router.get('/', protect, async (req, res) => {
         const groups = await Group.find(query)
             .sort({ createdAt: -1 })
             .populate('members', 'name email mastery')
-            .populate('project', 'title');
+            .populate('project', 'title deadline');
 
         res.json({ success: true, groups });
     } catch (error) {

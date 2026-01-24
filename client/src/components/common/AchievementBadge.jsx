@@ -22,9 +22,14 @@ const AchievementBadge = ({ achievement, onClose }) => {
                 {/* Glow Effect */}
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500"></div>
 
-                {/* Icon */}
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg text-2xl animate-bounce">
-                    {achievement.icon || '🏆'}
+                {/* Icon (Hexagon Shape) */}
+                <div className="w-16 h-16 relative flex items-center justify-center shrink-0">
+                    <svg className="absolute w-full h-full text-indigo-600 drop-shadow-md" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" />
+                    </svg>
+                    <div className="relative z-10 text-2xl animate-bounce text-white">
+                        {achievement.icon || '🏆'}
+                    </div>
                 </div>
 
                 {/* Text */}

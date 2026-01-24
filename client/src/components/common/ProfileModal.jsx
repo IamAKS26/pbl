@@ -37,11 +37,11 @@ const ProfileModal = ({ user, group, onClose, onLogout }) => {
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-blue-50 p-3 rounded-lg text-center">
-                        <span className="block text-2xl font-bold text-blue-600">Level 5</span>
+                        <span className="block text-2xl font-bold text-blue-600">Level {user?.level || 1}</span>
                         <span className="text-xs text-blue-600/80 font-medium">Rank</span>
                     </div>
                     <div className="bg-amber-50 p-3 rounded-lg text-center">
-                        <span className="block text-2xl font-bold text-amber-600">1,250</span>
+                        <span className="block text-2xl font-bold text-amber-600">{user?.xp || 0}</span>
                         <span className="text-xs text-amber-600/80 font-medium">XP Earned</span>
                     </div>
                 </div>

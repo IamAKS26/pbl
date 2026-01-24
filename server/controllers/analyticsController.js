@@ -1,6 +1,7 @@
 const Task = require('../models/Task');
 const User = require('../models/User');
 
+
 // @desc    Get student activity metrics
 // @route   GET /api/analytics/student-activity
 // @access  Private (Teacher only)
@@ -143,6 +144,81 @@ exports.getInactiveStudents = async (req, res) => {
             success: false,
             message: 'Error fetching inactive students',
             error: error.message,
+        });
+    }
+};
+// @desc    Get student performance (XP history)
+// @route   GET /api/analytics/performance
+// @access  Private (Student/Teacher)
+exports.getStudentPerformance = async (req, res) => {
+    try {
+        let userId = req.user.id;
+
+        // If teacher, allow viewing a specific student
+        if (req.user.role === 'Teacher' && req.query.studentId) {
+            userId = req.query.studentId;
+        }
+
+        // Find all completed tasks for this user
+        const tasks = await Task.find({
+            assignee: userId,
+            status: { $in: ['Done', 'Completed'] },
+            xpAwarded: true
+        }).sort({ lastUpdated: 1 }); // Oldest first for cumulative sum
+
+        // Aggregate XP over time
+        // Aggregate XP over time (5-minute intervals)
+        let cumulativeXP = 0;
+        const history = tasks.map(task => {
+            cumulativeXP += (task.points || 10) + (task.priority === 'High' ? 20 : 0);
+
+            // 5-minute bucketing
+            const dateObj = new Date(task.lastUpdated);
+            const minutes = dateObj.getMinutes();
+            const roundedMinutes = Math.floor(minutes / 5) * 5;
+            dateObj.setMinutes(roundedMinutes, 0, 0); // Reset seconds/ms
+
+            return {
+                timestamp: dateObj.getTime(), // Sortable numeric timestamp
+                date: dateObj.toISOString(),   // Full ISO string for potential frontend use
+                formattedTime: dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                displayDate: dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                xp: cumulativeXP,
+                taskTitle: task.title
+            };
+        });
+
+        // Group by 5-min bucket (keep last entry per bucket)
+        const groupedHistory = [];
+        const bucketMap = new Map();
+
+        history.forEach(entry => {
+            bucketMap.set(entry.timestamp, entry);
+        });
+
+        // Convert map to array and ensure sort
+        const sortedBuckets = Array.from(bucketMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+
+        // Format for frontend
+        const finalHistory = sortedBuckets.map(entry => ({
+            date: entry.date, // ISO string for robust parsing
+            xp: entry.xp,
+            taskTitle: entry.taskTitle
+        }));
+
+        res.status(200).json({
+            success: true,
+            history: finalHistory
+        });
+
+
+
+    } catch (error) {
+        console.error('Performance analytics error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching performance data',
+            error: error.message
         });
     }
 };

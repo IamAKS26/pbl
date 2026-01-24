@@ -45,6 +45,13 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const updateUserStats = (newStats) => {
+        if (!user) return;
+        const updatedUser = { ...user, ...newStats };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser)); // Persist locally
+    };
+
     const login = async (email, password) => {
         try {
             const response = await api.post('/api/auth/login', { email, password });
@@ -107,6 +114,7 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         loadUser,
+        updateUserStats,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

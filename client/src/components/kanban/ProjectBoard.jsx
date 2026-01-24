@@ -42,6 +42,13 @@ const ProjectBoard = () => {
     useEffect(() => {
         if (projectId) {
             fetchProject(projectId);
+
+            // Poll for real-time updates (every 5 seconds)
+            const intervalId = setInterval(() => {
+                fetchProject(projectId, true); // Silent fetch
+            }, 5000);
+
+            return () => clearInterval(intervalId);
         }
     }, [projectId]);
 

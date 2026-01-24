@@ -100,6 +100,14 @@ const TaskCard = ({ task, onClick, onSubmitClick, isStudent = false }) => {
                         Submit Evidence
                     </button>
                 )}
+
+                {/* Show Completed By Name */}
+                {isCompleted && task.assignee && (
+                    <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium ml-auto bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {task.assignee.name || 'Student'}
+                    </div>
+                )}
             </div>
         </div>
     );

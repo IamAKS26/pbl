@@ -3,10 +3,14 @@ const router = express.Router();
 const {
     getStudentActivity,
     getInactiveStudents,
+    getStudentPerformance
 } = require('../controllers/analyticsController');
 const { protect, authorizeTeacher } = require('../middleware/auth');
 
-// All routes require authentication and teacher role
+// Public analytics (protected but allowed for students)
+router.get('/performance', protect, getStudentPerformance);
+
+// Teacher-only analytics
 router.use(protect);
 router.use(authorizeTeacher);
 

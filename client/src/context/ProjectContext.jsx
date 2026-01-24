@@ -17,9 +17,9 @@ export const ProjectProvider = ({ children }) => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(false);
 
-    const fetchProjects = async () => {
+    const fetchProjects = async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const response = await api.get('/api/projects');
             setProjects(response.data.projects);
             return { success: true };
@@ -30,13 +30,13 @@ export const ProjectProvider = ({ children }) => {
                 message: error.response?.data?.message || 'Failed to fetch projects',
             };
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
-    const fetchProject = async (projectId) => {
+    const fetchProject = async (projectId, silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const response = await api.get(`/api/projects/${projectId}`);
             setCurrentProject(response.data.project);
             setTasks(response.data.tasks);
@@ -48,7 +48,7 @@ export const ProjectProvider = ({ children }) => {
                 message: error.response?.data?.message || 'Failed to fetch project',
             };
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
@@ -103,9 +103,9 @@ export const ProjectProvider = ({ children }) => {
 
 
 
-    const fetchUserTasks = async () => {
+    const fetchUserTasks = async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const response = await api.get('/api/tasks'); // server filters by student
             setTasks(response.data.tasks);
             return { success: true };
@@ -116,7 +116,7 @@ export const ProjectProvider = ({ children }) => {
                 message: error.response?.data?.message || 'Failed to fetch tasks',
             };
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 

@@ -4,6 +4,7 @@ const Group = require('../models/Group');
 const Notification = require('../models/Notification'); // Import Notification model
 const User = require('../models/User'); // Import User model for XP updates
 const { fetchCommits, parseGitHubUrl } = require('../config/github');
+const gamification = require('../utils/gamification');
 
 // @desc    Get all tasks
 // @route   GET /api/tasks
@@ -40,7 +41,14 @@ exports.getTasks = async (req, res) => {
 
         const tasks = await Task.find(query)
             .populate('assignee', 'name email')
-            .populate('project', 'title')
+            .populate({
+                path: 'project',
+                select: 'title teacher',
+                populate: {
+                    path: 'teacher',
+                    select: 'name email'
+                }
+            })
             .populate('feedbackBy', 'name email')
             .sort({ createdAt: -1 });
 
@@ -66,7 +74,14 @@ exports.getTask = async (req, res) => {
     try {
         const task = await Task.findById(req.params.id)
             .populate('assignee', 'name email')
-            .populate('project', 'title teacher')
+            .populate({
+                path: 'project',
+                select: 'title teacher',
+                populate: {
+                    path: 'teacher',
+                    select: 'name email'
+                }
+            })
             .populate('feedbackBy', 'name email');
 
         if (!task) {
@@ -95,7 +110,7 @@ exports.getTask = async (req, res) => {
 // @access  Private (Teacher only)
 exports.createTask = async (req, res) => {
     try {
-        const { title, description, project, assignee, status, priority } = req.body;
+        const { title, description, project, assignee, status, priority, points } = req.body;
 
         // Validate required fields
         if (!title || !project || !assignee) {
@@ -128,11 +143,19 @@ exports.createTask = async (req, res) => {
             assignee,
             status: status || 'Backlog',
             priority: priority || 'Medium',
+            points: points || 10, // Default to 10 if not specified
         });
 
         const populatedTask = await Task.findById(task._id)
             .populate('assignee', 'name email')
-            .populate('project', 'title');
+            .populate({
+                path: 'project',
+                select: 'title teacher',
+                populate: {
+                    path: 'teacher',
+                    select: 'name email'
+                }
+            });
 
         res.status(201).json({
             success: true,
@@ -186,8 +209,17 @@ exports.updateTask = async (req, res) => {
         const isTeacher = teacherId && teacherId === userId;
         const isAssignee = assigneeId && assigneeId === userId;
 
+        let isGroupMember = false;
         if (!isTeacher && !isAssignee) {
-            console.log('[UpdateTask] Auth Failed: User is neither teacher nor assignee');
+            // Check if user is in the group assigned to this project
+            const userGroup = await Group.findOne({ project: task.project, members: req.user.id });
+            if (userGroup) {
+                isGroupMember = true;
+            }
+        }
+
+        if (!isTeacher && !isAssignee && !isGroupMember) {
+            console.log('[UpdateTask] Auth Failed: User is neither teacher, assignee, nor group member');
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to update this task',
@@ -215,7 +247,14 @@ exports.updateTask = async (req, res) => {
             { new: true, runValidators: true }
         )
             .populate('assignee', 'name email')
-            .populate('project', 'title');
+            .populate({
+                path: 'project',
+                select: 'title teacher',
+                populate: {
+                    path: 'teacher',
+                    select: 'name email'
+                }
+            });
 
         // NOTIFICATION LOGIC:
         // If student submits code (status change to Review) or just code submission
@@ -242,7 +281,8 @@ exports.updateTask = async (req, res) => {
         // Gamification: Pay out XP and Check Achievements
         let xpAwarded = false;
         let points = 0;
-        let achievements = [];
+        let newAchievments = [];
+        let levelUp = false;
 
         if (updatedTask.assignee && (updatedTask.status === 'Done' || updatedTask.status === 'Completed') && !updatedTask.xpAwarded) {
             const user = await User.findById(updatedTask.assignee);
@@ -250,35 +290,41 @@ exports.updateTask = async (req, res) => {
                 // 1. Award XP
                 points = updatedTask.points || 10;
                 user.xp = (user.xp || 0) + points;
+
+                // 2. Calculate Level
+                const oldLevel = gamification.calculateLevel(user.xp - points);
+                const newLevel = gamification.calculateLevel(user.xp);
+                if (newLevel > oldLevel) {
+                    levelUp = true;
+                }
+
                 updatedTask.xpAwarded = true;
                 xpAwarded = true;
                 await updatedTask.save();
 
-                // 2. Check Achievements
-                const completedCount = await Task.countDocuments({
+                // 3. Check Achievements
+                const completedTasks = await Task.countDocuments({
                     assignee: user._id,
                     status: { $in: ['Done', 'Completed'] }
                 });
 
-                // Badge 1: First Task
-                if (completedCount >= 1 && !user.badges.includes('TASK_1')) {
-                    user.badges.push('TASK_1');
-                    achievements.push({ id: 'TASK_1', title: 'First Steps', icon: '🚀', description: 'Completed your first task!' });
-                }
-
-                // Badge 2: High Five (5 Tasks)
-                if (completedCount >= 5 && !user.badges.includes('TASK_5')) {
-                    user.badges.push('TASK_5');
-                    achievements.push({ id: 'TASK_5', title: 'High Five!', icon: '✋', description: 'Completed 5 tasks!' });
-                }
-
-                // Badge 3: Project Completion
                 const projectTasks = await Task.find({ project: updatedTask.project });
-                const allDone = projectTasks.every(t => t.status === 'Done' || t.status === 'Completed');
-                // Ensure mostly done (>80%) or all done. User said "whole project complete".
-                if (allDone && projectTasks.length > 0 && !user.badges.includes('PROJECT_MASTER')) {
-                    user.badges.push('PROJECT_MASTER');
-                    achievements.push({ id: 'PROJECT_MASTER', title: 'Project Master', icon: '🏆', description: 'Completed an entire project!' });
+                const allDone = projectTasks.length > 0 && projectTasks.every(t => t.status === 'Done' || t.status === 'Completed');
+
+                const stats = {
+                    completedTasks,
+                    projectCompleted: allDone
+                };
+
+                const badges = gamification.checkBadges(user, updatedTask, stats);
+
+                if (badges.length > 0) {
+                    badges.forEach(b => {
+                        if (!user.badges.includes(b.id)) {
+                            user.badges.push(b.id);
+                            newAchievments.push(b);
+                        }
+                    });
                 }
 
                 await user.save();
@@ -291,7 +337,10 @@ exports.updateTask = async (req, res) => {
             task: updatedTask,
             xpAwarded,
             points,
-            achievements
+            achievements: newAchievments,
+            levelUp,
+            userXP: xpAwarded ? (await User.findById(updatedTask.assignee)).xp : undefined,
+            userLevel: xpAwarded ? gamification.calculateLevel((await User.findById(updatedTask.assignee)).xp) : undefined
         });
     } catch (error) {
         console.error('Update task error:', error);
@@ -357,8 +406,16 @@ exports.addEvidence = async (req, res) => {
             });
         }
 
-        // Only assignee can add evidence
-        if (task.assignee.toString() !== req.user.id) {
+        // Allow assignee OR group member
+        const isAssignee = task.assignee && task.assignee.toString() === req.user.id;
+        let isAuthorized = isAssignee;
+
+        if (!isAuthorized) {
+            const userGroup = await Group.findOne({ project: task.project, members: req.user.id });
+            if (userGroup) isAuthorized = true;
+        }
+
+        if (!isAuthorized) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to add evidence to this task',
@@ -418,8 +475,16 @@ exports.linkGitHubRepo = async (req, res) => {
             });
         }
 
-        // Only assignee can link GitHub repo
-        if (task.assignee.toString() !== req.user.id) {
+        // Allow assignee OR group member
+        const isAssignee = task.assignee && task.assignee.toString() === req.user.id;
+        let isAuthorized = isAssignee;
+
+        if (!isAuthorized) {
+            const userGroup = await Group.findOne({ project: task.project, members: req.user.id });
+            if (userGroup) isAuthorized = true;
+        }
+
+        if (!isAuthorized) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to link GitHub repo to this task',
@@ -478,8 +543,16 @@ exports.syncGitHubCommits = async (req, res) => {
             });
         }
 
-        // Only assignee can sync commits
-        if (task.assignee.toString() !== req.user.id) {
+        // Allow assignee OR group member
+        const isAssignee = task.assignee && task.assignee.toString() === req.user.id;
+        let isAuthorized = isAssignee;
+
+        if (!isAuthorized) {
+            const userGroup = await Group.findOne({ project: task.project, members: req.user.id });
+            if (userGroup) isAuthorized = true;
+        }
+
+        if (!isAuthorized) {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to sync commits for this task',

@@ -8,6 +8,7 @@ import { formatDate } from '../../utils/dateHelpers';
 import api from '../../utils/api';
 import ReviewsTab from './ReviewsTab';
 import GroupFormationWizard from './GroupFormationWizard';
+import PerformanceChart from '../common/PerformanceChart';
 import { PROJECT_TEMPLATES } from '../../constants/templates';
 
 const TeacherDashboard = () => {
@@ -15,7 +16,7 @@ const TeacherDashboard = () => {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const { addToast } = useToast();
-    const { projects, fetchProjects, createProject, deleteProject, loading, assignTemplate } = useProject();
+    const { projects: contextProjects, fetchProjects: contextFetchProjects, createProject, deleteProject, loading, assignTemplate } = useProject();
 
     // UI State
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -50,6 +51,7 @@ const TeacherDashboard = () => {
     });
     const [students, setStudents] = useState([]);
     const [groups, setGroups] = useState([]);
+    const [projects, setProjects] = useState([]);
 
     // Notifications State
     const [notifications, setNotifications] = useState([]);
@@ -90,26 +92,61 @@ const TeacherDashboard = () => {
     const [showGroupWizard, setShowGroupWizard] = useState(false);
     const [newGroupData, setNewGroupData] = useState({ name: '', members: [] });
 
+    // Performance View State
+    const [showPerformanceModal, setShowPerformanceModal] = useState(false);
+    const [selectedStudentRes, setSelectedStudentRes] = useState(null);
+    const [studentPerformanceData, setStudentPerformanceData] = useState([]);
+
+    const fetchProjects = async (silent = false) => {
+        try {
+            if (!silent) setLoadingData(true);
+            const res = await api.get('/api/projects');
+            // Assuming teacher sees only their projects or all
+            // Filter if necessary on backend
+
+            setProjects(res.data.projects);
+        } catch (error) {
+            console.error('Error fetching projects:', error);
+        } finally {
+            if (!silent) setLoadingData(false);
+        }
+    };
+
+    const fetchStudents = async (silent = false) => {
+        try {
+            if (!silent) setLoadingData(true);
+            // Fetch all students (or students in teacher's projects)
+            const res = await api.get('/api/students');
+            setStudents(res.data.students);
+        } catch (error) {
+            console.error('Error fetching students:', error);
+        } finally {
+            if (!silent) setLoadingData(false);
+        }
+    };
+
     useEffect(() => {
         if (activeTab === 'projects') {
             fetchProjects();
+            // Poll projects every 15s
+            const interval = setInterval(() => fetchProjects(true), 15000);
+            return () => clearInterval(interval);
         } else if (activeTab === 'students') {
             fetchStudents();
+            const interval = setInterval(() => fetchStudents(true), 15000);
+            return () => clearInterval(interval);
         } else if (activeTab === 'groups') {
             fetchGroupsAndStudents();
+        } else if (activeTab === 'reviews') {
+            // logic for reviews if needed
         }
     }, [activeTab]);
 
-    const fetchStudents = async () => {
-        try {
-            setLoadingData(true);
-            const res = await api.get('/api/students');
-            setStudents(res.data.students);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoadingData(false);
-        }
+    const calculateAverage = (mastery) => {
+        if (!mastery || Object.keys(mastery).length === 0) return 0;
+        const scores = Object.values(mastery);
+        const sum = scores.reduce((a, b) => a + b, 0);
+        return (sum / scores.length).toFixed(1);
     };
 
     const fetchGroupsAndStudents = async () => {
@@ -128,12 +165,7 @@ const TeacherDashboard = () => {
         }
     };
 
-    const calculateAverage = (mastery) => {
-        if (!mastery || Object.keys(mastery).length === 0) return 0;
-        const scores = Object.values(mastery);
-        const sum = scores.reduce((a, b) => a + b, 0);
-        return (sum / scores.length).toFixed(1);
-    };
+
 
     const handleSaveGroups = async (newGroups) => {
         try {
@@ -692,6 +724,7 @@ const TeacherDashboard = () => {
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Mastery Score</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-transparent divide-y divide-gray-200 dark:divide-white/5">
@@ -702,11 +735,45 @@ const TeacherDashboard = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                                 {student.mastery ? JSON.stringify(student.mastery) : 'N/A'}
                                             </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button
+                                                    onClick={async () => {
+                                                        setSelectedStudentRes(student);
+                                                        setStudentPerformanceData([]); // Reset
+                                                        setShowPerformanceModal(true);
+                                                        try {
+                                                            const res = await api.get(`/api/analytics/performance?studentId=${student._id}`);
+                                                            setStudentPerformanceData(res.data.history);
+                                                        } catch (e) { console.error(e); }
+                                                    }}
+                                                    className="text-emerald-600 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                                >
+                                                    View Growth
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         )}
+                    </div>
+                )}
+
+                {/* Student Performance Modal */}
+                {showPerformanceModal && selectedStudentRes && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                        <div className="glass-panel p-6 max-w-2xl w-full animate-scale-in border border-white/20 shadow-2xl">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="text-xl font-display font-bold text-gray-900 dark:text-white">{selectedStudentRes.name}'s Growth</h3>
+                                    <p className="text-sm text-gray-500">XP Accumulation over time</p>
+                                </div>
+                                <button onClick={() => setShowPerformanceModal(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400">✕</button>
+                            </div>
+                            <div className="bg-white/50 dark:bg-black/20 rounded-xl p-4 border border-gray-100 dark:border-white/5">
+                                <PerformanceChart data={studentPerformanceData} />
+                            </div>
+                        </div>
                     </div>
                 )}
 
