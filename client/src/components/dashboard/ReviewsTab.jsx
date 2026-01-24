@@ -15,7 +15,7 @@ const ReviewsTab = () => {
             setLoading(true);
             const res = await api.get('/api/tasks');
             // Filter locally for now, ideally backend filters
-            const reviewTasks = res.data.tasks.filter(t => t.status === 'Review' || t.status === 'In Review');
+            const reviewTasks = res.data.tasks.filter(t => t.status === 'Review' || t.status === 'In Review' || t.status === 'Ready for Review');
             setTasks(reviewTasks);
         } catch (err) {
             console.error(err);
@@ -86,11 +86,12 @@ const ReviewsTab = () => {
                         {task.codeSubmission && task.codeSubmission.code && (
                             <div className="mt-4">
                                 <p className="text-sm font-medium text-gray-700 mb-1">Code Submission:</p>
-                                <div className="h-48 border rounded-lg overflow-hidden">
+                                <div className="h-[400px] resize-y overflow-hidden border rounded-lg min-h-[200px]">
                                     <CodeEditor
                                         initialCode={task.codeSubmission.code}
                                         language={task.codeSubmission.language || 'javascript'}
                                         readOnly={true}
+                                        allowRun={true}
                                         height="100%"
                                     />
                                 </div>

@@ -8,10 +8,10 @@ const KanbanColumn = ({ title, tasks, onTaskClick }) => {
     });
 
     return (
-        <div className="glass-panel p-4 flex flex-col h-full min-w-[300px] bg-white/40 border-white/60">
-            <div className="flex items-center justify-between mb-4 px-2">
-                <h3 className="font-display font-bold text-gray-800 tracking-tight">{title}</h3>
-                <span className="bg-white/50 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg border border-white/50 shadow-sm">
+        <div className="glass-panel p-4 flex flex-col h-full min-w-[300px] bg-white/30 backdrop-blur-2xl border border-white/40 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/30 px-1">
+                <h3 className="font-display font-bold text-gray-800 tracking-tight text-lg">{title}</h3>
+                <span className="bg-white/60 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100/50 shadow-sm min-w-[1.5rem] text-center">
                     {tasks.length}
                 </span>
             </div>

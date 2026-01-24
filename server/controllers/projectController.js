@@ -102,7 +102,7 @@ exports.createProject = async (req, res) => {
             description,
             deadline,
             teacher: req.user.id,
-            columns: columns || ['To Do', 'In Progress', 'Review', 'Completed'],
+            columns: columns || ['Backlog', 'In Progress', 'Ready for Review', 'Done'],
             students: students || [],
         });
 

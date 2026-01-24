@@ -25,6 +25,15 @@ const taskSchema = new mongoose.Schema({
         required: true,
         default: 'To Do',
     },
+    points: {
+        type: Number,
+        default: 10, // Default XP points per task
+        min: 0
+    },
+    xpAwarded: {
+        type: Boolean,
+        default: false
+    },
     priority: {
         type: String,
         enum: ['Low', 'Medium', 'High', 'Urgent'],
@@ -37,11 +46,11 @@ const taskSchema = new mongoose.Schema({
         },
         publicId: {
             type: String,
-            required: true,
+            required: false, // Optional for external links
         },
         resourceType: {
             type: String,
-            enum: ['image', 'video'],
+            enum: ['image', 'video', 'link', 'raw', 'auto'], // Added link
             required: true,
         },
         uploadedAt: {

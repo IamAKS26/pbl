@@ -17,7 +17,7 @@ const TaskCard = ({ task, onClick, onSubmitClick, isStudent = false }) => {
         opacity: isDragging ? 0.5 : 1,
     };
 
-    const isPending = task.status === 'Under Review' || task.status === 'Pending';
+    const isPending = task.status === 'Under Review' || task.status === 'Pending' || task.status === 'Review' || task.status === 'Ready for Review';
     const isCompleted = task.status === 'Done' || task.status === 'Completed';
 
     const getPriorityColor = (priority) => {
@@ -37,21 +37,24 @@ const TaskCard = ({ task, onClick, onSubmitClick, isStudent = false }) => {
             {...attributes}
             {...listeners}
             onClick={onClick}
-            className={`glass-card relative group p-4 border border-white/60 hover:border-emerald-300/50 transition-all duration-300
-                ${isCompleted ? 'opacity-75 bg-gray-50/50' : 'bg-white/80'}
+            className={`glass-card relative group p-5 border border-white/60 shadow-sm hover:shadow-xl hover:shadow-emerald-900/5 hover:-translate-y-1 hover:border-emerald-400/30 transition-all duration-300 rounded-xl
+                ${isCompleted ? 'opacity-60 bg-gray-50/50 grayscale-[0.5]' : 'bg-white/70 backdrop-blur-md'}
             `}
         >
             <div className="flex items-start justify-between mb-3">
-                <h4 className={`font-display font-semibold text-gray-800 flex-1 leading-tight ${isCompleted ? 'line-through text-gray-400' : ''}`}>
+                <h4 className={`font-display font-bold text-gray-900 flex-1 leading-snug text-[15px] ${isCompleted ? 'line-through text-gray-400' : ''}`}>
                     {task.title}
                 </h4>
-                <div className="flex gap-1 shrink-0 ml-2">
+                <div className="flex gap-1 shrink-0 ml-2 items-center">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-100 flex items-center">
+                        {task.points || 10} XP
+                    </span>
                     {isPending && <span className="px-2 py-0.5 rounded-md bg-yellow-50 text-yellow-700 text-[10px] font-bold border border-yellow-100">Review</span>}
                     {isCompleted && <span className="px-2 py-0.5 rounded-md bg-green-50 text-green-700 text-[10px] font-bold border border-green-100">Done</span>}
                     {!isPending && !isCompleted && (
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${task.priority === 'High' ? 'bg-red-50 text-red-600 border-red-100' :
-                                task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                    'bg-blue-50 text-blue-600 border-blue-100'
+                            task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                'bg-blue-50 text-blue-600 border-blue-100'
                             }`}>
                             {task.priority}
                         </span>

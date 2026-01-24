@@ -7,11 +7,12 @@ const CodeEditor = ({
     language = 'javascript',
     onChange,
     readOnly = false,
-    height = "400px"
+    height = "400px",
+    allowRun = false // New prop to enable run even in readOnly
 }) => {
+    const [editorValue, setEditorValue] = useState(initialCode);
     const [output, setOutput] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
-    const [editorValue, setEditorValue] = useState(initialCode);
 
     const handleEditorChange = (value) => {
         setEditorValue(value);
@@ -21,87 +22,75 @@ const CodeEditor = ({
     };
 
     const handleRunCode = async () => {
+        // If readOnly, use initialCode (prop) or editorValue if updated?
+        // editorValue might be stale if readOnly doesn't allow edits?
+        // Monaco Editor readOnly prevents edits, so editorValue remains correct.
         if (!editorValue) return;
         setIsRunning(true);
         setOutput(null);
 
         try {
-            // Language ID mapping (partial list)
-            // 63: JavaScript (Node.js 12.14.0)
-            // 71: Python (3.8.1)
-            // 62: Java (OpenJDK 13.0.1)
-            // 50: C (GCC 9.2.0)
-            // 54: C++ (GCC 9.2.0)
-
-            let langId = 63; // Default JS
-            if (language === 'python') langId = 71;
-            if (language === 'java') langId = 62;
-            if (language === 'c') langId = 50;
-            if (language === 'cpp') langId = 54;
-
-            const res = await api.post('/api/judge0/submit', {
+            const res = await api.post('/api/run', {
                 source_code: editorValue,
-                language_id: langId
+                language: language
             });
 
-            if (res.data.token) {
-                // Poll for result
-                checkStatus(res.data.token);
+            if (res.data.success) {
+                setOutput(res.data.run);
             }
         } catch (error) {
             console.error(error);
             setOutput({
-                status: { description: 'Error' },
-                stderr: 'Failed to submit code for execution.'
+                code: 1,
+                stderr: 'Failed to execute code. Server error.'
             });
-            setIsRunning(false);
-        }
-    };
-
-    const checkStatus = async (token) => {
-        try {
-            const res = await api.get(`/api/judge0/result/${token}`);
-            const result = res.data.result;
-
-            if (result.status.id <= 2) {
-                // In Queue or Processing, wait and poll again
-                setTimeout(() => checkStatus(token), 1000);
-            } else {
-                // Done (3: Accepted, others: Error/Wrong Answer)
-                setOutput(result);
-                setIsRunning(false);
-            }
-        } catch (error) {
-            console.error(error);
-            setOutput({
-                status: { description: 'Error' },
-                stderr: 'Failed to fetch execution result.'
-            });
+        } finally {
             setIsRunning(false);
         }
     };
 
     return (
-        <div className="flex flex-col h-full border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+        <div className="flex flex-col h-full border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white">
             {/* Toolbar */}
             <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-600 uppercase">{language}</span>
-                <button
-                    onClick={handleRunCode}
-                    disabled={isRunning || readOnly}
-                    className={`btn btn-sm ${isRunning ? 'bg-gray-300 text-gray-500' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
-                >
-                    {isRunning ? 'Running...' : 'Run Code ▶'}
-                </button>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                    {language === 'nodejs' ? 'JAVASCRIPT' : language.toUpperCase()} EDITOR
+                </span>
+                <div className="flex gap-2">
+                    {readOnly && <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded flex items-center">READ ONLY</span>}
+                    {(!readOnly || allowRun) && (
+                        <button
+                            onClick={handleRunCode}
+                            disabled={isRunning}
+                            className={`btn btn-sm text-xs flex items-center gap-2 ${isRunning ? 'bg-gray-300 text-gray-500' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                        >
+                            {isRunning ? (
+                                <>
+                                    <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Running...
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    Verifiy Code
+                                </>
+                            )}
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Editor Area */}
-            <div className="flex-1 min-h-[300px] relative">
+            <div className={`relative ${output ? 'h-3/5' : 'h-full flex-1'} transition-all duration-300`}>
                 <Editor
                     height="100%"
-                    defaultLanguage={language === 'nodejs' ? 'javascript' : language} // Monaco uses 'javascript'
+                    defaultLanguage={language === 'nodejs' ? 'javascript' : language}
                     defaultValue={initialCode}
-                    value={initialCode}
+                    value={initialCode} // Controlled component if needed, or initialCode
                     onChange={handleEditorChange}
                     theme="light"
                     options={{
@@ -110,39 +99,34 @@ const CodeEditor = ({
                         scrollBeyondLastLine: false,
                         fontSize: 14,
                         automaticLayout: true,
+                        padding: { top: 16 }
                     }}
                 />
             </div>
 
             {/* Output Console */}
-            <div className="bg-gray-900 text-gray-100 p-4 min-h-[150px] max-h-[300px] overflow-y-auto border-t border-gray-200 font-mono text-sm">
-                <div className="text-gray-400 text-xs mb-2 uppercase tracking-wider">Output Console</div>
-                {output ? (
-                    <div>
+            {output && (
+                <div className="h-2/5 bg-gray-900 text-gray-100 p-0 border-t border-gray-200 font-mono text-sm flex flex-col animate-slide-up">
+                    <div className="flex justify-between items-center px-4 py-1.5 bg-gray-800 border-b border-gray-700">
+                        <span className="text-gray-400 text-[10px] uppercase tracking-wider font-bold">Terminal Output</span>
+                        <button onClick={() => setOutput(null)} className="text-gray-400 hover:text-white text-xs">✕ Close</button>
+                    </div>
+                    <div className="p-4 overflow-y-auto flex-1">
                         {output.stdout && (
-                            <pre className="whitespace-pre-wrap">{output.stdout}</pre>
+                            <pre className="whitespace-pre-wrap font-mono text-gray-200">{output.stdout}</pre>
                         )}
                         {output.stderr && (
-                            <pre className="text-red-400 whitespace-pre-wrap">{output.stderr}</pre>
+                            <pre className="whitespace-pre-wrap text-red-400 mt-2">{output.stderr}</pre>
                         )}
-                        {output.compile_output && (
-                            <pre className="text-yellow-400 whitespace-pre-wrap">{output.compile_output}</pre>
+                        {!output.stdout && !output.stderr && (
+                            <div className="text-gray-500 italic text-xs">Program executed successfully with no output.</div>
                         )}
-                        {!output.stdout && !output.stderr && !output.compile_output && (
-                            <div className="text-gray-500 italic">No output</div>
-                        )}
-                        <div className="mt-2 text-xs text-gray-500 border-t border-gray-700 pt-1">
-                            Status: <span className={output.status.id === 3 ? 'text-green-400' : 'text-red-400'}>{output.status.description}</span>
-                            {output.time && <span className="ml-3">Time: {output.time}s</span>}
-                            {output.memory && <span className="ml-3">Memory: {output.memory}KB</span>}
+                        <div className="mt-4 pt-2 border-t border-gray-800 text-[10px] text-gray-500">
+                            Exit Code: {output.code} {output.signal && `(Signal: ${output.signal})`}
                         </div>
                     </div>
-                ) : (
-                    <div className="text-gray-600 italic">
-                        {isRunning ? 'Executing...' : 'Run code to see output here...'}
-                    </div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };

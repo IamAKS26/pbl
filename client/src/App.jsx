@@ -10,7 +10,7 @@ import Dashboard from './components/dashboard/Dashboard';
 import ProjectBoard from './components/kanban/ProjectBoard';
 import './index.css';
 
-import LandingPage from './components/layout/LandingPage';
+
 
 function App() {
     return (
@@ -20,7 +20,7 @@ function App() {
                     <ProjectProvider>
                         <Router>
                             <Routes>
-                                <Route path="/" element={<LandingPage />} />
+                                <Route path="/" element={<Navigate to="/login" replace />} />
                                 <Route path="/login" element={<Login />} />
                                 <Route path="/register" element={<Register />} />
                                 <Route

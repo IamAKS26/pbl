@@ -21,7 +21,7 @@ const projectSchema = new mongoose.Schema({
     },
     columns: {
         type: [String],
-        default: ['Planning', 'To Do', 'In Progress', 'Review', 'Completed'],
+        default: ['Backlog', 'In Progress', 'Ready for Review', 'Done'],
     },
     students: [{
         type: mongoose.Schema.Types.ObjectId,

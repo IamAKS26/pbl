@@ -138,7 +138,12 @@ export const ProjectProvider = ({ children }) => {
         try {
             const response = await api.put(`/api/tasks/${taskId}`, taskData);
             setTasks(tasks.map(t => t._id === taskId ? response.data.task : t));
-            return { success: true, task: response.data.task };
+            return {
+                success: true,
+                task: response.data.task,
+                xpAwarded: response.data.xpAwarded,
+                points: response.data.points
+            };
         } catch (error) {
             console.error('Update task error:', error);
             return {

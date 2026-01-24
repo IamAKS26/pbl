@@ -67,7 +67,7 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
                     language: 'javascript',
                     submittedAt: new Date()
                 },
-                status: 'Review'
+                status: 'Ready for Review' // Explicitly move to Review column
             });
             alert('Code submitted successfully!');
             onUpdate();
@@ -107,8 +107,8 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
                     <div>
                         <div className="flex items-center gap-3 mb-1">
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${task.priority === 'High' ? 'bg-red-50 text-red-600 border-red-100' :
-                                    task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                                        'bg-blue-50 text-blue-600 border-blue-100'
+                                task.priority === 'Medium' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                    'bg-blue-50 text-blue-600 border-blue-100'
                                 }`}>
                                 {task.priority} Priority
                             </span>
@@ -222,17 +222,21 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
                                     initialCode={code}
                                     onChange={setCode}
                                     height="400px"
+                                    readOnly={user.role === 'Teacher'}
+                                    allowRun={user.role === 'Teacher'}
                                 />
                             </div>
-                            <div className="flex justify-end pt-2">
-                                <button
-                                    onClick={handleSubmitCode}
-                                    className="btn btn-primary"
-                                    disabled={loading}
-                                >
-                                    {loading ? 'Submitting...' : 'Submit Solution'}
-                                </button>
-                            </div>
+                            {user.role === 'Student' && (
+                                <div className="flex justify-end pt-2">
+                                    <button
+                                        onClick={handleSubmitCode}
+                                        className="btn btn-primary"
+                                        disabled={loading}
+                                    >
+                                        {loading ? 'Submitting...' : 'Submit Solution'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -362,15 +366,7 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
                 <div className="shrink-0 bg-gray-50/80 backdrop-blur-sm px-8 py-4 border-t border-gray-200 flex justify-between items-center sm:rounded-b-2xl">
                     <span className="text-xs text-gray-400">Press ESC to close</span>
                     <div className="flex gap-3">
-                        {user?.role === 'Teacher' && (
-                            <button
-                                onClick={handleDeleteTask}
-                                className="btn btn-danger text-sm py-2"
-                                disabled={loading}
-                            >
-                                Delete Task
-                            </button>
-                        )}
+                        {/* Delete button removed as per request */}
                         <button onClick={onClose} className="btn btn-secondary py-2">
                             Close
                         </button>
