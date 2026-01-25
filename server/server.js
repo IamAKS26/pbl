@@ -52,7 +52,12 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📚 PBL by GyanSetu API ready!`);
-});
+// Only listen if running directly (not required as a module)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📚 PBL by GyanSetu API ready!`);
+  });
+}
+
+module.exports = app;
