@@ -32,6 +32,7 @@ app.use('/api/students', require('./routes/students'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/run', require('./routes/piston'));
+app.use('/api/admin', require('./routes/admin')); // Admin routes
 // app.use('/api/judge0', require('./routes/judge0')); // Removed Judge0
 
 // Health check route

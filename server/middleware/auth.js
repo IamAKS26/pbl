@@ -68,4 +68,15 @@ const authorizeStudent = (req, res, next) => {
     next();
 };
 
-module.exports = { protect, authorizeTeacher, authorizeStudent };
+// Middleware to check if user is an admin
+const authorizeAdmin = (req, res, next) => {
+    if (req.user.role !== 'Admin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Admins only.',
+        });
+    }
+    next();
+};
+
+module.exports = { protect, authorizeTeacher, authorizeStudent, authorizeAdmin };

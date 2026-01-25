@@ -27,7 +27,12 @@ const Login = () => {
 
         if (result.success) {
             addToast(`Welcome back!`, 'success');
-            navigate('/dashboard');
+            addToast(`Welcome back!`, 'success');
+            if (result.user.role === 'Admin') {
+                navigate('/admin');
+            } else {
+                navigate('/dashboard');
+            }
         } else {
             addToast(result.message ?? 'Login failed', 'error');
         }

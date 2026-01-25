@@ -15,6 +15,8 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates } from '@dnd-ki
 import KanbanColumn from './KanbanColumn';
 import TaskCard from './TaskCard';
 import TaskDetails from './TaskDetails';
+import TaskLibrary from './TaskLibrary';
+import LibraryTaskCard from './LibraryTaskCard';
 import { PROJECT_TEMPLATES } from '../../constants/templates';
 import GamificationBadge from '../common/GamificationBadge';
 
@@ -64,8 +66,12 @@ const ProjectBoard = () => {
 
     const handleDragStart = (event) => {
         const { active } = event;
-        const task = tasks.find(t => t._id === active.id);
-        setActiveTask(task);
+        if (active.data.current?.isLibraryTask) {
+            setActiveTask({ ...active.data.current.taskData, isLibraryTask: true });
+        } else {
+            const task = tasks.find(t => t._id === active.id);
+            setActiveTask(task);
+        }
     };
 
     const handleDragEnd = async (event) => {
@@ -79,6 +85,26 @@ const ProjectBoard = () => {
         const taskId = active.id;
         const newStatus = over.id;
 
+        // Check if it's a library task drop
+        if (active.data.current?.isLibraryTask) {
+            const taskTemplate = active.data.current.taskData;
+            if (taskTemplate && newStatus) {
+                try {
+                    await createTask({
+                        title: taskTemplate.title,
+                        description: taskTemplate.description,
+                        status: newStatus,
+                        project: currentProject._id,
+                    });
+                } catch (err) {
+                    console.error("Failed to create task from library", err);
+                }
+            }
+            setActiveTask(null);
+            return;
+        }
+
+        // Existing column-to-column logic
         const task = tasks.find(t => t._id === taskId);
 
         if (task && task.status !== newStatus) {
@@ -229,74 +255,93 @@ const ProjectBoard = () => {
                 </div>
             </nav>
 
-            {/* Kanban Board */}
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="mb-6">
-                    <p className="text-gray-600 mb-4">{currentProject.description}</p>
-
-                    {/* Progress & Deadline */}
-                    <div className="glass-panel p-6 border border-white/60 flex flex-col md:flex-row gap-6 items-center justify-between mb-8">
-                        {/* Progress Bar */}
-                        <div className="w-full md:w-2/3">
-                            <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
-                                <span className="font-display font-bold text-gray-800">Project Progress</span>
-                                <span className="font-mono text-emerald-600 font-bold">{Math.round((tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length / (tasks.length || 1)) * 100)}%</span>
-                            </div>
-                            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                                <div
-                                    className="bg-gradient-to-r from-emerald-500 to-teal-500 h-3 rounded-full shadow-lg shadow-emerald-200 transition-all duration-1000 ease-out relative group"
-                                    style={{ width: `${Math.round((tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length / (tasks.length || 1)) * 100)}%` }}
-                                >
-                                    <div className="absolute inset-0 bg-white/30 animate-shimmer"></div>
-                                </div>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2 font-medium">
-                                <span className="text-emerald-700 font-bold">{tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length}</span> of {tasks.length} tasks completed
-                            </p>
-                        </div>
-
-                        {/* Deadline Timer */}
-                        <div className="flex items-center gap-4 bg-white/50 px-5 py-3 rounded-xl border border-white/60 shadow-sm">
-                            <div className="p-2 bg-red-50 rounded-lg text-red-500">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            </div>
-                            <div className="text-sm">
-                                <span className="block text-xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">Time Remaining</span>
-                                <div className="font-display font-bold text-gray-900 text-lg leading-none">
-                                    {currentProject.deadline ? (
-                                        <>
-                                            {Math.ceil((new Date(currentProject.deadline) - new Date()) / (1000 * 60 * 60 * 24))} Days
-                                            {/* <span className="block text-[10px] font-normal opacity-75">Due: {new Date(currentProject.deadline).toLocaleDateString()}</span> */}
-                                        </>
-                                    ) : 'No Deadline'}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
+            {/* Main Content Layout */}
+            <main className="max-w-full px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-64px)] flex flex-col">
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCorners}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                 >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 h-full items-start">
-                        {currentProject.columns?.map((column) => (
-                            <KanbanColumn
-                                key={column}
-                                title={column}
-                                tasks={getTasksByStatus(column)}
-                                onTaskClick={handleTaskClick}
-                            />
-                        ))}
+                    <div className="flex gap-8 h-full min-h-0">
+                        {/* Task Library Sidebar (Teacher Only) */}
+                        {user?.role === 'Teacher' && (
+                            <div className="w-80 h-full shrink-0 flex flex-col z-20">
+                                <TaskLibrary onAddCustomTask={() => setShowAssignModal(true)} />
+                            </div>
+                        )}
+
+                        <div className="flex-1 flex flex-col min-w-0 h-full">
+                            <div className="mb-6 shrink-0">
+                                <p className="text-gray-600 mb-4">{currentProject.description}</p>
+
+                                {/* Progress & Deadline */}
+                                <div className="glass-panel p-6 border border-white/60 flex flex-col md:flex-row gap-6 items-center justify-between mb-8">
+                                    {/* Progress Bar */}
+                                    <div className="w-full md:w-2/3">
+                                        <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+                                            <span className="font-display font-bold text-gray-800">Project Progress</span>
+                                            <span className="font-mono text-emerald-600 font-bold">{Math.round((tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length / (tasks.length || 1)) * 100)}%</span>
+                                        </div>
+                                        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                                            <div
+                                                className="bg-gradient-to-r from-emerald-500 to-teal-500 h-3 rounded-full shadow-lg shadow-emerald-200 transition-all duration-1000 ease-out relative group"
+                                                style={{ width: `${Math.round((tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length / (tasks.length || 1)) * 100)}%` }}
+                                            >
+                                                <div className="absolute inset-0 bg-white/30 animate-shimmer"></div>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-2 font-medium">
+                                            <span className="text-emerald-700 font-bold">{tasks.filter(t => t.status === 'Completed' || t.status === 'Done').length}</span> of {tasks.length} tasks completed
+                                        </p>
+                                    </div>
+
+                                    {/* Deadline Timer */}
+                                    <div className="flex items-center gap-4 bg-white/50 px-5 py-3 rounded-xl border border-white/60 shadow-sm">
+                                        <div className="p-2 bg-red-50 rounded-lg text-red-500">
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        </div>
+                                        <div className="text-sm">
+                                            <span className="block text-xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">Time Remaining</span>
+                                            <div className="font-display font-bold text-gray-900 text-lg leading-none">
+                                                {currentProject.deadline ? (
+                                                    <>
+                                                        {Math.ceil((new Date(currentProject.deadline) - new Date()) / (1000 * 60 * 60 * 24))} Days
+                                                    </>
+                                                ) : 'No Deadline'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Board Columns Container */}
+                            <div className="flex-1 overflow-x-auto custom-scrollbar overflow-y-hidden pb-4">
+                                <div className="inline-flex gap-8 h-full items-start min-w-full pr-8 text-black">
+                                    {currentProject.columns?.map((column) => (
+                                        <KanbanColumn
+                                            key={column}
+                                            title={column}
+                                            tasks={getTasksByStatus(column)}
+                                            onTaskClick={handleTaskClick}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
-                    <DragOverlay>
+                    <DragOverlay dropAnimation={null}>
                         {activeTask ? (
-                            <div className="opacity-50">
-                                <TaskCard task={activeTask} />
-                            </div>
+                            activeTask.isLibraryTask ? (
+                                <div className="w-72">
+                                    <LibraryTaskCard task={activeTask} />
+                                </div>
+                            ) : (
+                                <div className="w-[300px]">
+                                    <TaskCard task={activeTask} />
+                                </div>
+                            )
                         ) : null}
                     </DragOverlay>
                 </DndContext>

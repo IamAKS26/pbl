@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['Student', 'Teacher'],
+        enum: ['Student', 'Teacher', 'Admin'],
         required: [true, 'Please specify role'],
     },
     mastery: {
@@ -38,6 +38,10 @@ const userSchema = new mongoose.Schema({
     badges: [{
         type: String,
     }],
+    isActive: {
+        type: Boolean,
+        default: true
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
