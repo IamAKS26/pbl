@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
+import { useToast } from '../../context/ToastContext';
 import {
     DndContext,
     DragOverlay,
@@ -24,6 +25,7 @@ const ProjectBoard = () => {
     const { projectId } = useParams();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
+    const { addToast } = useToast();
     const { currentProject, tasks: projectTasks, fetchProject, updateTaskStatus, loading, createTask } = useProject();
     const tasks = projectTasks || [];
 
@@ -88,16 +90,38 @@ const ProjectBoard = () => {
         // Check if it's a library task drop
         if (active.data.current?.isLibraryTask) {
             const taskTemplate = active.data.current.taskData;
-            if (taskTemplate && newStatus) {
+
+            // Determine the destination status (column)
+            let finalStatus = null;
+
+            // 1. Check if dropped directly on a column
+            if (currentProject.columns.includes(over.id)) {
+                finalStatus = over.id;
+            }
+            // 2. Check if dropped on a task -> get that task's status
+            else {
+                const overTask = tasks.find(t => t._id === over.id);
+                if (overTask) {
+                    finalStatus = overTask.status;
+                }
+            }
+
+            if (taskTemplate && finalStatus) {
                 try {
-                    await createTask({
+                    const res = await createTask({
                         title: taskTemplate.title,
                         description: taskTemplate.description,
-                        status: newStatus,
+                        status: finalStatus,
                         project: currentProject._id,
+                        points: taskTemplate.points || 10,
+                        priority: taskTemplate.priority || 'Low'
                     });
+                    if (!res.success) {
+                        addToast(`Failed to create task: ${res.message}`, 'error');
+                    }
                 } catch (err) {
                     console.error("Failed to create task from library", err);
+                    addToast("Failed to create task from library", 'error');
                 }
             }
             setActiveTask(null);
@@ -148,8 +172,12 @@ const ProjectBoard = () => {
     // Task Assignment State
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [selectedTemplateForTasks, setSelectedTemplateForTasks] = useState('');
-    const [customTaskData, setCustomTaskData] = useState({ title: '', description: '', points: 10 });
+    const [customTaskData, setCustomTaskData] = useState({ title: '', description: '', points: 10, priority: 'Low' });
     const [creatingCustom, setCreatingCustom] = useState(false);
+
+    // Custom Library Tasks (Client-side temporary library)
+    const [customLibraryTasks, setCustomLibraryTasks] = useState([]);
+    const [isAddingToLibrary, setIsAddingToLibrary] = useState(false);
 
     if (loading) {
         return (
@@ -175,36 +203,60 @@ const ProjectBoard = () => {
     const handleCreateCustomTask = async (e) => {
         e.preventDefault();
         if (!customTaskData.title) return;
+
+        if (isAddingToLibrary) {
+            // Add to local library state
+            const newTask = {
+                ...customTaskData,
+                _id: `custom-${Date.now()}`, // Temp ID for drag logic
+                isCustom: true
+            };
+            setCustomLibraryTasks(prev => [newTask, ...prev]);
+            setCustomTaskData({ title: '', description: '', points: 10, priority: 'Low' });
+            setShowAssignModal(false);
+            setIsAddingToLibrary(false);
+            return;
+        }
+
         try {
-            await createTask({
+            const res = await createTask({
                 title: customTaskData.title,
                 description: customTaskData.description,
                 status: 'Backlog', // Default to Backlog as per request
                 project: currentProject._id,
-                points: customTaskData.points || 10
+                points: customTaskData.points || 10,
+                priority: customTaskData.priority || 'Low'
             });
-            // alert('Custom task created!');
-            setCustomTaskData({ title: '', description: '', points: 10 });
-            setShowAssignModal(false);
+
+            if (res.success) {
+                // Task created successfully
+                setCustomTaskData({ title: '', description: '', points: 10, priority: 'Low' });
+                setShowAssignModal(false);
+            } else {
+                addToast(`Failed to create task: ${res.message}`, 'error');
+            }
         } catch (err) {
             console.error(err);
-            alert('Failed to create custom task');
+            addToast('Failed to create custom task', 'error');
         }
     };
 
     const handleAssignTemplateTask = async (taskTemplate) => {
         if (!currentProject) return;
         try {
-            await createTask({
+            const res = await createTask({
                 title: taskTemplate.title,
                 description: taskTemplate.description,
                 status: 'Backlog',
                 project: currentProject._id,
             });
-            // alert('Task added to board!');
+            if (!res.success) {
+                addToast(`Failed to add task: ${res.message}`, 'error');
+                // Don't close modal if failed? Or maybe alert is enough.
+            }
         } catch (err) {
             console.error(err);
-            alert('Failed to add task');
+            addToast('Failed to add task', 'error');
         }
     };
 
@@ -241,7 +293,10 @@ const ProjectBoard = () => {
                         </div>
                         <div className="flex items-center space-x-4">
                             <button
-                                onClick={() => setShowAssignModal(true)}
+                                onClick={() => {
+                                    setIsAddingToLibrary(false);
+                                    setShowAssignModal(true);
+                                }}
                                 className="btn btn-primary text-sm flex items-center gap-1"
                             >
                                 <span>+</span> Assign Task
@@ -267,7 +322,14 @@ const ProjectBoard = () => {
                         {/* Task Library Sidebar (Teacher Only) */}
                         {user?.role === 'Teacher' && (
                             <div className="w-80 h-full shrink-0 flex flex-col z-20">
-                                <TaskLibrary onAddCustomTask={() => setShowAssignModal(true)} />
+                                <TaskLibrary
+                                    onAddCustomTask={() => {
+                                        setIsAddingToLibrary(true);
+                                        setCreatingCustom(true); // Force custom tab
+                                        setShowAssignModal(true);
+                                    }}
+                                    customTasks={customLibraryTasks}
+                                />
                             </div>
                         )}
 
@@ -367,7 +429,7 @@ const ProjectBoard = () => {
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
                     <div className="bg-white rounded-xl p-6 max-w-2xl w-full animate-scale-in max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold">Add Task to Board</h3>
+                            <h3 className="text-lg font-bold">{isAddingToLibrary ? 'Add Tile to Library' : 'Add Task to Board'}</h3>
                             <button onClick={() => setShowAssignModal(false)} className="text-gray-500 hover:text-gray-700">✕</button>
                         </div>
 
@@ -410,16 +472,44 @@ const ProjectBoard = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">XP Points</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        className="input"
-                                        placeholder="e.g. 50"
-                                        value={customTaskData.points || ''}
-                                        onChange={e => setCustomTaskData({ ...customTaskData, points: parseInt(e.target.value) || 0 })}
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Points awarded upon completion.</p>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">XP Points (Max 30)</label>
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="30"
+                                            className="input w-32"
+                                            placeholder="0-30"
+                                            value={customTaskData.points || ''}
+                                            onChange={e => {
+                                                let val = parseInt(e.target.value) || 0;
+                                                if (val > 30) val = 30; // Max Cap
+                                                if (val < 0) val = 0;
+
+                                                let priority = 'Low';
+                                                if (val > 20) priority = 'High'; // Hard
+                                                else if (val > 10) priority = 'Medium'; // Medium
+                                                // 0-10 -> Low (Easy)
+
+                                                setCustomTaskData({ ...customTaskData, points: val, priority });
+                                            }}
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-gray-500">Difficulty:</span>
+                                            {(!customTaskData.points || customTaskData.points <= 10) && (
+                                                <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">Easy</span>
+                                            )}
+                                            {customTaskData.points > 10 && customTaskData.points <= 20 && (
+                                                <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">Medium</span>
+                                            )}
+                                            {customTaskData.points > 20 && (
+                                                <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">Hard</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        0-10: Easy (Low Priority) • 11-20: Medium • 21-30: Hard (High Priority)
+                                    </p>
                                 </div>
                                 <div className="flex justify-end pt-2">
                                     <button type="submit" className="btn btn-primary">Create Task</button>

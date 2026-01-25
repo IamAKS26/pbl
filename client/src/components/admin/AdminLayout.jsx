@@ -22,14 +22,17 @@ const AdminLayout = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex font-sans">
-            {/* Sidebar - Tech Dark Mode */}
-            <div className={`fixed inset-y-0 left-0 bg-slate-900 shadow-2xl z-50 transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'} md:relative md:translate-x-0 border-r border-slate-800`}>
-                <div className="h-24 flex items-center px-8 border-b border-slate-800/50 bg-slate-900/50 backdrop-blur-xl">
+        <div className="min-h-screen bg-slate-50 dark:bg-gray-900 flex font-sans relative overflow-hidden">
+            {/* Global Background */}
+            <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-cyan-500/10 via-slate-900/5 to-slate-900/10 pointer-events-none"></div>
+
+            {/* Sidebar */}
+            <div className={`fixed inset-y-0 left-0 bg-slate-900/95 backdrop-blur-2xl shadow-2xl z-50 transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-72'} md:relative md:translate-x-0 border-r border-white/5`}>
+                <div className="h-24 flex items-center px-8 border-b border-white/5 bg-white/5 backdrop-blur-sm">
                     <div className="flex items-center gap-3">
                         <div className="relative w-10 h-10 flex items-center justify-center">
                             <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500 to-emerald-500 rounded-xl blur opacity-75 animate-pulse"></div>
-                            <div className="relative w-full h-full bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-center">
+                            <div className="relative w-full h-full bg-slate-800 rounded-xl border border-white/10 flex items-center justify-center">
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-emerald-400 font-black text-xl">A</span>
                             </div>
                         </div>
@@ -47,29 +50,25 @@ const AdminLayout = () => {
                             <button
                                 key={item.path}
                                 onClick={() => navigate(item.path)}
-                                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden ${location.pathname === item.path
-                                    ? 'text-white'
-                                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 group relative overflow-hidden text-sm ${location.pathname === item.path
+                                    ? 'text-white bg-white/10 shadow-lg shadow-cyan-900/20 border border-white/10'
+                                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
                                     }`}
                             >
                                 {location.pathname === item.path && (
-                                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-600/20 to-emerald-600/20 border-l-2 border-cyan-500"></div>
+                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-emerald-400"></div>
                                 )}
 
                                 <svg className={`w-5 h-5 relative z-10 transition-transform duration-300 group-hover:scale-110 ${location.pathname === item.path ? 'text-cyan-400' : 'text-slate-500 group-hover:text-cyan-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>
                                 <span className="font-semibold relative z-10">{item.label}</span>
-
-                                {location.pathname === item.path && (
-                                    <div className="absolute right-4 w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] animate-pulse"></div>
-                                )}
                             </button>
                         ))}
                     </nav>
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 p-6 bg-slate-900 border-t border-slate-800">
-                    <div className="flex items-center gap-3 mb-6 bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center border border-slate-600">
+                <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-white/5 bg-black/20 backdrop-blur-sm">
+                    <div className="flex items-center gap-3 mb-6 bg-white/5 p-3 rounded-xl border border-white/5">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center border border-white/10">
                             <span className="font-bold text-slate-300">{user?.name?.charAt(0) || 'A'}</span>
                         </div>
                         <div className="flex-1 overflow-hidden">
@@ -79,17 +78,16 @@ const AdminLayout = () => {
                     </div>
                     <button
                         onClick={handleLogout}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all duration-300 hover:shadow-[0_0_15px_rgba(248,113,113,0.1)]"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-white/10 rounded-xl text-sm font-bold text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all duration-300 hover:shadow-[0_0_15px_rgba(248,113,113,0.1)] bg-white/5"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                        Termiante Session
+                        Terminate Session
                     </button>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-50 relative">
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 pointer-events-none"></div>
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative z-10">
                 <Outlet />
             </div>
         </div>

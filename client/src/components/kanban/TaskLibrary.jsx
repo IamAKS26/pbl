@@ -2,18 +2,23 @@ import React, { useState } from 'react';
 import { PROJECT_TEMPLATES } from '../../constants/templates';
 import LibraryTaskCard from './LibraryTaskCard';
 
-const TaskLibrary = ({ onAddCustomTask }) => {
+const TaskLibrary = ({ onAddCustomTask, customTasks = [] }) => {
     const [selectedTemplateId, setSelectedTemplateId] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
 
     const currentTemplate = PROJECT_TEMPLATES.find(t => t.id === selectedTemplateId);
 
-    // Simple filter
-    const displayTasks = currentTemplate
+    // Filter template tasks
+    const templateTasks = currentTemplate
         ? currentTemplate.suggestedTasks.filter(task =>
             task.title.toLowerCase().includes(searchTerm.toLowerCase())
         )
         : [];
+
+    // Filter custom tasks
+    const filteredCustomTasks = customTasks.filter(task =>
+        task.title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <div className="flex flex-col h-full glass-panel border border-white/60 bg-white/20 backdrop-blur-3xl rounded-2xl overflow-hidden shadow-2xl shadow-emerald-900/5">
@@ -53,34 +58,54 @@ const TaskLibrary = ({ onAddCustomTask }) => {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                {selectedTemplateId ? (
-                    <>
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+                {/* Custom Tasks Section */}
+                {filteredCustomTasks.length > 0 && (
+                    <div className="space-y-3">
                         <div className="px-1 flex items-center justify-between">
-                            <span className="text-[10px] font-black text-emerald-700/60 uppercase tracking-widest">Suggested Tiles</span>
-                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{displayTasks.length}</span>
+                            <span className="text-[10px] font-black text-violet-700/60 uppercase tracking-widest">My Custom Tiles</span>
+                            <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">{filteredCustomTasks.length}</span>
                         </div>
-                        {displayTasks.map((task, idx) => (
+                        {filteredCustomTasks.map((task, idx) => (
+                            <LibraryTaskCard
+                                key={`custom-${idx}`}
+                                task={task}
+                                templateId="custom"
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Template Tasks Section */}
+                {selectedTemplateId ? (
+                    <div className="space-y-3">
+                        <div className="px-1 flex items-center justify-between">
+                            <span className="text-[10px] font-black text-emerald-700/60 uppercase tracking-widest">Template Tiles</span>
+                            <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{templateTasks.length}</span>
+                        </div>
+                        {templateTasks.map((task, idx) => (
                             <LibraryTaskCard
                                 key={idx}
                                 task={task}
                                 templateId={selectedTemplateId}
                             />
                         ))}
-                        {displayTasks.length === 0 && (
-                            <div className="text-center py-10">
+                        {templateTasks.length === 0 && (
+                            <div className="text-center py-4">
                                 <p className="text-xs text-gray-400 italic">No tasks match your search</p>
                             </div>
                         )}
-                    </>
-                ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3 opacity-60">
-                        <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
-                        </div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select a Template</p>
-                        <p className="text-[11px] text-gray-400">Choose a template above to see available task tiles.</p>
                     </div>
+                ) : (
+                    filteredCustomTasks.length === 0 && (
+                        <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3 opacity-60">
+                            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" /></svg>
+                            </div>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select a Template</p>
+                            <p className="text-[11px] text-gray-400">Choose a template above or create a custom tile to populate the library.</p>
+                        </div>
+                    )
                 )}
             </div>
 

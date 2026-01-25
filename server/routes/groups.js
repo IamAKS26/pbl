@@ -71,9 +71,36 @@ router.put('/:id', protect, authorizeTeacher, async (req, res) => {
             return res.status(401).json({ success: false, message: 'Not authorized' });
         }
 
+        // Check if project assignment changed
+        // 'project' from body can be: undefined (no change), 'null' (unassign), or new ID
+        if (project !== undefined) {
+            const newProjectId = project === 'null' ? null : project;
+            const oldProjectId = group.project?.toString();
+
+            if (newProjectId !== oldProjectId) {
+                const Project = require('../models/Project');
+
+                // 1. Remove group members from OLD project
+                if (oldProjectId) {
+                    await Project.updateOne(
+                        { _id: oldProjectId },
+                        { $pull: { students: { $in: group.members } } }
+                    );
+                }
+
+                // 2. Add group members to NEW project
+                if (newProjectId) {
+                    await Project.updateOne(
+                        { _id: newProjectId },
+                        { $addToSet: { students: { $each: group.members } } }
+                    );
+                }
+            }
+        }
+
         group.name = name || group.name;
         group.members = members || group.members;
-        group.project = project === 'null' ? null : (project || group.project); // Handle unassignment
+        group.project = project === 'null' ? null : (project || group.project);
         group.averageMastery = averageMastery || group.averageMastery;
 
         await group.save();

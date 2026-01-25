@@ -37,6 +37,21 @@ exports.getTasks = async (req, res) => {
                 // Fallback: only show direct assignments
                 query.assignee = req.user.id;
             }
+        } else if (req.user.role === 'Teacher') {
+            // Teachers should only see tasks for their own projects
+            const myProjects = await Project.find({ teacher: req.user.id }).select('_id');
+            const myProjectIds = myProjects.map(p => p._id);
+
+            if (projectId) {
+                // Verify this project belongs to teacher
+                // If projectId is in query but not in myProjectIds, return empty result (or 403, but empty is safe filter)
+                if (!myProjectIds.some(id => id.toString() === projectId)) {
+                    return res.status(200).json({ success: true, count: 0, tasks: [] });
+                }
+                query.project = projectId;
+            } else {
+                query.project = { $in: myProjectIds };
+            }
         }
 
         const tasks = await Task.find(query)
@@ -113,10 +128,10 @@ exports.createTask = async (req, res) => {
         const { title, description, project, assignee, status, priority, points } = req.body;
 
         // Validate required fields
-        if (!title || !project || !assignee) {
+        if (!title || !project) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide title, project, and assignee',
+                message: 'Please provide title and project',
             });
         }
 
@@ -228,22 +243,25 @@ exports.updateTask = async (req, res) => {
         }
 
         // Students can only update status (for drag-drop) or submit code
-        // We log the keys to debug if this 403s
+        let updateData = req.body;
+
         if (req.user.role === 'Student') {
-            const allowedKeys = ['status', 'codeSubmission'];
+            const allowedKeys = ['status', 'codeSubmission', 'submissionType', 'evidenceLinks']; // Added submissionType/evidenceLinks just in case
             const keys = Object.keys(req.body);
             const hasInvalidKeys = keys.some(key => !allowedKeys.includes(key));
 
             if (hasInvalidKeys) {
-                console.log('[UpdateTask] blocked student update with keys:', keys);
-                // We will NOT block it for now to fix the user's issue, just sanitize it
-                // return res.status(403).json({ ... }) 
+                console.log('[UpdateTask] Blocked student update with invalid keys:', keys);
+                return res.status(403).json({
+                    success: false,
+                    message: 'You are only allowed to update task status or submission details.'
+                });
             }
         }
 
         const updatedTask = await Task.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            updateData,
             { new: true, runValidators: true }
         )
             .populate('assignee', 'name email')

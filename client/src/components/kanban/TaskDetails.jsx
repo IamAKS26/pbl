@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import CodeEditor from '../common/CodeEditor';
 import api from '../../utils/api';
@@ -7,12 +8,21 @@ import { formatDateTime } from '../../utils/dateHelpers';
 
 const TaskDetails = ({ task, onClose, onUpdate }) => {
     const { user } = useAuth();
+    const { addToast } = useToast();
     const navigate = useNavigate();
 
     const [activeTab, setActiveTab] = useState('code');
     const [link, setLink] = useState('');
     const [code, setCode] = useState(task.codeSubmission?.code || '// Write your code here');
+    const [codeLanguage, setCodeLanguage] = useState(task.codeSubmission?.language || 'javascript');
     const [loading, setLoading] = useState(false);
+
+    // Reset state when task changes (in case of modal reuse)
+    useEffect(() => {
+        setCode(task.codeSubmission?.code || '// Write your code here');
+        setCodeLanguage(task.codeSubmission?.language || 'javascript');
+        setLink('');
+    }, [task._id]);
 
     /* ---------------- Evidence ---------------- */
 
@@ -29,7 +39,7 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
             onUpdate();
         } catch (error) {
             console.error(error);
-            alert('Failed to submit evidence');
+            addToast('Failed to submit evidence', 'error');
         } finally {
             setLoading(false);
         }
@@ -49,7 +59,7 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
             onUpdate();
         } catch (error) {
             console.error(error);
-            alert('Failed to link repo');
+            addToast('Failed to link repo', 'error');
         } finally {
             setLoading(false);
         }
@@ -64,16 +74,16 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
             await api.put(`/api/tasks/${task._id}`, {
                 codeSubmission: {
                     code,
-                    language: 'javascript',
+                    language: codeLanguage,
                     submittedAt: new Date()
                 },
                 status: 'Ready for Review' // Explicitly move to Review column
             });
-            alert('Code submitted successfully!');
+            addToast('Code submitted successfully!', 'success');
             onUpdate();
         } catch (error) {
             console.error(error);
-            alert('Failed to submit code');
+            addToast('Failed to submit code', 'error');
         } finally {
             setLoading(false);
         }
@@ -86,12 +96,12 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
         setLoading(true);
         try {
             await api.delete(`/api/tasks/${task._id}`);
-            alert('Task deleted');
+            addToast('Task deleted', 'success');
             onClose();
             onUpdate();
         } catch (error) {
             console.error(error);
-            alert('Failed to delete task');
+            addToast('Failed to delete task', 'error');
         } finally {
             setLoading(false);
         }
@@ -220,7 +230,9 @@ const TaskDetails = ({ task, onClose, onUpdate }) => {
                             <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                                 <CodeEditor
                                     initialCode={code}
+                                    language={codeLanguage}
                                     onChange={setCode}
+                                    onLanguageChange={setCodeLanguage}
                                     height="400px"
                                     readOnly={user.role === 'Teacher'}
                                     allowRun={user.role === 'Teacher'}

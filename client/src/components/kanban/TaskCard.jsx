@@ -101,11 +101,13 @@ const TaskCard = ({ task, onClick, onSubmitClick, isStudent = false }) => {
                     </button>
                 )}
 
-                {/* Show Completed By Name */}
-                {isCompleted && task.assignee && (
-                    <div className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium ml-auto bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                        {task.assignee.name || 'Student'}
+                {/* Show Assignee Name (For Teachers & Students) */}
+                {task.assignee && (
+                    <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium ml-auto bg-gray-100 px-2 py-0.5 rounded-full border border-gray-200" title={`Assigned to ${task.assignee.name}`}>
+                        <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold">
+                            {task.assignee.name ? task.assignee.name.charAt(0) : '?'}
+                        </div>
+                        <span className="max-w-[80px] truncate">{task.assignee.name || 'Student'}</span>
                     </div>
                 )}
             </div>
